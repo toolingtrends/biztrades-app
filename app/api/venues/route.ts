@@ -38,8 +38,54 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const data = await res.json().catch(() => ({}));
-    return NextResponse.json(data, { status: res.status });
+    const backend = await res.json().catch(() => ({}));
+
+    const raw = Array.isArray(backend.venues) ? backend.venues : backend.data || [];
+
+    // Normalize to the Venue shape expected by the frontend:
+    // - /venues page expects fields: venueName, address, city, state, country, description, etc.
+    // - organizer BookVenue page also expects city/country, amenities, meetingSpaces.
+    const venues = raw.map((v: any) => {
+      const fullName = `${v.firstName ?? ""} ${v.lastName ?? ""}`.trim();
+      return {
+        id: v.id,
+        venueName:
+          (v.venueName ?? "").trim() ||
+          (v.company ?? "").trim() ||
+          fullName ||
+          "Unnamed Venue",
+        logo: v.avatar ?? "",
+        contactPerson: fullName || "Venue Manager",
+        email: v.email ?? "",
+        mobile: v.phone ?? "",
+        address: v.venueAddress ?? "",
+        city: v.venueCity ?? "",
+        state: v.venueState ?? "",
+        country: v.venueCountry ?? "",
+        website: v.venueWebsite ?? v.website ?? "",
+        description: v.venueDescription ?? v.bio ?? "",
+        maxCapacity: v.maxCapacity ?? 0,
+        totalHalls: v.totalHalls ?? 0,
+        totalEvents: v.totalEvents ?? 0,
+        activeBookings: v.activeBookings ?? 0,
+        averageRating: v.averageRating ?? 0,
+        totalReviews: v.totalReviews ?? 0,
+        amenities: v.amenities ?? [],
+        meetingSpaces: [], // not modeled yet
+        isVerified: v.isVerified ?? false,
+        venueImages: v.venueImages ?? [],
+      };
+    });
+
+    return NextResponse.json(
+      {
+        success: backend.success ?? true,
+        venues,
+        data: venues,
+        pagination: backend.pagination ?? null,
+      },
+      { status: res.status },
+    );
   } catch (error) {
     console.error("Error fetching venues via backend:", error);
     return NextResponse.json(

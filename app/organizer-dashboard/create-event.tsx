@@ -1032,6 +1032,28 @@ const handlePublishEvent = async () => {
   }
 }
 
+  // Upload helpers use Next.js Cloudinary route, which relies on NextAuth
+  // session instead of backend JWT. This avoids 401s when organizers are
+  // logged in via NextAuth only.
+  const uploadToCloudinary = async (file: File, type: "image" | "brochure" | "layout") => {
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("type", type === "image" ? "image" : type === "brochure" ? "brochure" : "image")
+
+    const res = await fetch("/api/upload/cloudinary", {
+      method: "POST",
+      body: formData,
+    })
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || "Failed to upload file")
+    }
+
+    const data = await res.json()
+    return data.url as string
+  }
+
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
     if (!files || files.length === 0) return
@@ -1039,20 +1061,7 @@ const handlePublishEvent = async () => {
     setIsUploadingImages(true)
     try {
       const uploadPromises = Array.from(files).map(async (file) => {
-        const formData = new FormData()
-        formData.append("file", file)
-        formData.append("folder", "events")
-
-        const data = await apiFetch<{ success: boolean; url: string; publicId?: string }>(
-          "/api/upload/cloudinary",
-          {
-            method: "POST",
-            body: formData,
-            auth: true,
-          },
-        )
-
-        return data.url
+        return uploadToCloudinary(file, "image")
       })
 
       const uploadedUrls = await Promise.all(uploadPromises)
@@ -1111,27 +1120,10 @@ const handlePublishEvent = async () => {
 
     setIsUploadingBrochure(true)
     try {
-      const formData = new FormData()
-      formData.append("file", file)
-      formData.append("organizerId", organizerId)
-
-      const eventId = "someEventId"
-      if (eventId) {
-        formData.append("eventId", eventId)
-      }
-
-      const data = await apiFetch<{ success: boolean; url: string; publicId?: string }>(
-        "/api/brochure/upload",
-        {
-          method: "POST",
-          body: formData,
-          auth: true,
-        },
-      )
-
+      const url = await uploadToCloudinary(file, "brochure")
       setFormData((prev) => ({
         ...prev,
-        brochure: data.url,
+        brochure: url,
       }))
 
       toast({
@@ -1178,20 +1170,8 @@ const handlePublishEvent = async () => {
 
     setIsUploadingLayoutPlan(true)
     try {
-      const formData = new FormData()
-      formData.append("file", file)
-      formData.append("folder", "event-documents")
-
-      const data = await apiFetch<{ success: boolean; url: string; publicId?: string }>(
-        "/api/upload/cloudinary",
-        {
-          method: "POST",
-          body: formData,
-          auth: true,
-        },
-      )
-
-      setFormData((prev) => ({ ...prev, layoutPlan: data.url }))
+      const url = await uploadToCloudinary(file, "layout")
+      setFormData((prev) => ({ ...prev, layoutPlan: url }))
 
       toast({
         title: "Success",

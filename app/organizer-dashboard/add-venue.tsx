@@ -352,8 +352,8 @@ export default function AddVenue({ organizerId, onVenueChange, selectedVenueId }
                         <Avatar className="w-16 h-16">
                           <AvatarImage src={venue.avatar || "/placeholder.svg"} />
                           <AvatarFallback>
-                            {venue.firstName[0]}
-                            {venue.lastName[0]}
+                            {(venue.firstName?.[0] || venue.venueName?.[0] || "V").toUpperCase()}
+                            {(venue.lastName?.[0] || venue.venueName?.split(" ")[1]?.[0] || "").toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
 

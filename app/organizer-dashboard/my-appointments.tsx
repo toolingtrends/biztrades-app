@@ -241,12 +241,13 @@ const cancelAppointment = async (appointmentId: string) => {
   }, [appointments])
 
   const filteredAppointments = appointments.filter((a) => {
+    const q = searchTerm.toLowerCase()
     const matchesSearch =
-      a.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      a.venue.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      a.venue.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      a.requesterCompany?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      a.purpose?.toLowerCase().includes(searchTerm.toLowerCase())
+      a.title?.toLowerCase().includes(q) ||
+      a.venue?.firstName?.toLowerCase().includes(q) ||
+      a.venue?.lastName?.toLowerCase().includes(q) ||
+      a.requesterCompany?.toLowerCase().includes(q) ||
+      a.purpose?.toLowerCase().includes(q)
     const matchesType = selectedType === "all" || a.type === selectedType
     return matchesSearch && matchesType
   })

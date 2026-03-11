@@ -1,121 +1,94 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import {prisma } from '@/lib/prisma';
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+// Use auth-options (OAuth + safe prisma), NOT lib/auth — that file calls prisma.user
+// when prisma is null and crashes GET before any handler logic runs.
+import { authOptions } from "@/lib/auth-options";
 
-// GET - Get user settings
-export async function GET(request: NextRequest) {
+/**
+ * Settings are migrated to the backend; frontend must not use Prisma.
+ * When DATABASE_URL is unset, prisma is null and the old route crashed on prisma.user.
+ * This route returns session-based defaults and accepts PATCH without persisting
+ * until a backend /api/settings endpoint exists.
+ */
+
+function settingsFromSession(session: { user: Record<string, unknown> }) {
+  const u = session.user as {
+    id?: string;
+    email?: string | null;
+    phone?: string | null;
+    role?: string;
+    image?: string | null;
+  };
+  return {
+    profileVisibility: "public",
+    phoneNumber: u.phone ?? "",
+    email: u.email ?? "",
+    introduceMe: true,
+    emailNotifications: true,
+    eventReminders: true,
+    newMessages: true,
+    connectionRequests: true,
+    isVerified: false,
+    emailVerified: false,
+    phoneVerified: false,
+    role: u.role ?? "ATTENDEE",
+  };
+}
+
+// GET - Get user settings (no DB on frontend)
+export async function GET(_request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      include: {
-        settings: true
-      }
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    const settings = {
-      profileVisibility: user.settings?.profileVisibility || 'public',
-      phoneNumber: user.phone || '',
-      email: user.email || '',
-      introduceMe: user.settings?.marketingEmails ?? true,
-      emailNotifications: user.settings?.emailNotifications ?? true,
-      eventReminders: user.settings?.eventUpdates ?? true,
-      newMessages: user.settings?.pushNotifications ?? true,
-      connectionRequests: user.settings?.pushNotifications ?? true,
-      isVerified: user.isVerified,
-      emailVerified: user.emailVerified,
-      phoneVerified: user.phoneVerified,
-      role: user.role
-    };
-
-    return NextResponse.json(settings);
+    return NextResponse.json(settingsFromSession(session));
   } catch (error) {
-    console.error('Error fetching settings:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error("Error fetching settings:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
-// PATCH - Update user settings
+// PATCH - Update user settings (no DB on frontend until backend exists)
 export async function PATCH(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const {
-      profileVisibility,
-      phoneNumber,
-      email,
-      introduceMe,
-      emailNotifications,
-      eventReminders,
-      newMessages,
-      connectionRequests
-    } = body;
+    const body = await request.json().catch(() => ({}));
+    const base = settingsFromSession(session);
+    const merged = {
+      ...base,
+      ...(body.profileVisibility !== undefined && {
+        profileVisibility: body.profileVisibility,
+      }),
+      ...(body.phoneNumber !== undefined && { phoneNumber: body.phoneNumber }),
+      ...(body.email !== undefined && { email: body.email }),
+      ...(body.introduceMe !== undefined && { introduceMe: body.introduceMe }),
+      ...(body.emailNotifications !== undefined && {
+        emailNotifications: body.emailNotifications,
+      }),
+      ...(body.eventReminders !== undefined && {
+        eventReminders: body.eventReminders,
+      }),
+      ...(body.newMessages !== undefined && { newMessages: body.newMessages }),
+      ...(body.connectionRequests !== undefined && {
+        connectionRequests: body.connectionRequests,
+      }),
+    };
 
-    // Update user settings
-    const updatedSettings = await prisma.settings.upsert({
-      where: { userId: session.user.id },
-      update: {
-        profileVisibility,
-        emailNotifications,
-        pushNotifications: newMessages || connectionRequests,
-        smsNotifications: false,
-        marketingEmails: introduceMe,
-        eventUpdates: eventReminders,
-        showEmail: profileVisibility === 'public',
-        showPhone: profileVisibility === 'public'
-      },
-      create: {
-        userId: session.user.id,
-        profileVisibility,
-        emailNotifications,
-        pushNotifications: newMessages || connectionRequests,
-        smsNotifications: false,
-        marketingEmails: introduceMe,
-        eventUpdates: eventReminders,
-        showEmail: profileVisibility === 'public',
-        showPhone: profileVisibility === 'public'
-      }
-    });
-
-    // Update user profile if phone or email changed
-    const userUpdateData: any = {};
-    if (phoneNumber !== undefined) userUpdateData.phone = phoneNumber;
-    if (email !== undefined) userUpdateData.email = email;
-
-    if (Object.keys(userUpdateData).length > 0) {
-      await prisma.user.update({
-        where: { id: session.user.id },
-        data: userUpdateData
-      });
-    }
-
+    // TODO: proxy to backend when POST/PATCH /api/settings is implemented
     return NextResponse.json({
-      message: 'Settings updated successfully',
-      settings: updatedSettings
+      message: "Settings updated successfully (session-only until backend persists)",
+      settings: merged,
     });
   } catch (error) {
-    console.error('Error updating settings:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error("Error updating settings:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

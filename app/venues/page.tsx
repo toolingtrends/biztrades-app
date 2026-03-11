@@ -64,7 +64,7 @@ export default function VenuesPage() {
   const fetchVenues = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/venue-manager")
+      const response = await fetch("/api/venues")
       if (!response.ok) {
         throw new Error("Failed to fetch venues")
       }
@@ -72,8 +72,10 @@ export default function VenuesPage() {
       const data = await response.json()
       console.log("API Response:", data) // Debug log
       
-      if (data.success && Array.isArray(data.venues)) {
-        setVenues(data.venues)
+      // Backend /api/venues returns { success, data: venues, pagination }
+      const list = Array.isArray(data.venues) ? data.venues : data.data
+      if (data.success && Array.isArray(list)) {
+        setVenues(list)
       } else {
         setVenues([])
       }
