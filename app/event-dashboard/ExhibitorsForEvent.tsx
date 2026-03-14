@@ -39,10 +39,33 @@ export default function ExhibitorsForEvent({ eventId }: ExhibitorsForEventProps)
     const fetchExhibitors = async () => {
       try {
         setLoading(true)
+        setError(null)
         const res = await fetch(`/api/events/exhibitors?eventId=${eventId}`)
         if (!res.ok) throw new Error("Failed to fetch exhibitors")
         const data = await res.json()
-        setBooths(data.booths || [])
+        // Backend returns { success: true, data: { exhibitors } }; each exhibitor is a booth with exhibitor + event
+        const list = data?.data?.exhibitors ?? []
+        const mapped: ExhibitorBooth[] = list.map((b: any) => ({
+          id: b.id,
+          boothNumber: b.boothNumber ?? "",
+          company: b.companyName ?? b.exhibitor?.company ?? "",
+          name: [b.exhibitor?.firstName, b.exhibitor?.lastName].filter(Boolean).join(" ").trim() || "—",
+          email: b.exhibitor?.email ?? "",
+          phone: b.exhibitor?.phone,
+          description: b.description,
+          totalCost: b.totalCost,
+          status: b.status ?? "BOOKED",
+          event: b.event
+            ? {
+                id: b.event.id,
+                title: b.event.title,
+                startDate: b.event.startDate,
+                endDate: b.event.endDate,
+                organizerId: "",
+              }
+            : { id: "", title: "", startDate: "", endDate: "", organizerId: "" },
+        }))
+        setBooths(mapped)
       } catch (err) {
         console.error("Error fetching exhibitors:", err)
         setError("Failed to load exhibitors")
@@ -76,6 +99,9 @@ export default function ExhibitorsForEvent({ eventId }: ExhibitorsForEventProps)
     <Card>
       <CardHeader>
         <CardTitle>Exhibitors for Event</CardTitle>
+        <p className="text-sm text-muted-foreground mt-1">
+          Total Exhibitors: {booths.length}
+        </p>
       </CardHeader>
       <CardContent>
         {booths.length === 0 ? (

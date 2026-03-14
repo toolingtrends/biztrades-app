@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
+import { apiFetch } from "@/lib/api"
 
 const daysOfWeek = ["S", "M", "T", "W", "T", "F", "S"]
 
@@ -41,16 +42,12 @@ export function DynamicCalendar({ className, userId }: DynamicCalendarProps) {
 
   const calendarDays = generateCalendar(currentYear, currentMonth)
 
-  // 🔹 Fetch user's interested events
+  // 🔹 Fetch user's interested events from backend
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const res = await fetch(`/api/users/${userId}/interested-events`)
-        if (!res.ok) {
-          throw new Error(`Failed to fetch: ${res.status}`)
-        }
-        const data = await res.json()
-        setEvents(data.events || [])
+        const data = await apiFetch<{ events?: Event[]; data?: Event[] }>(`/api/users/${userId}/interested-events`, { auth: true })
+        setEvents(data.events ?? data.data ?? [])
       } catch (err) {
         console.error("Failed to load events", err)
       }

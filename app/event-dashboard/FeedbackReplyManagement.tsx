@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { apiFetch } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -70,9 +71,7 @@ export default function FeedbackReplyManagement({ eventId }: { eventId: string }
   const fetchReviews = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/events/${eventId}/reviews?includeReplies=true`)
-      if (!response.ok) throw new Error("Failed to fetch reviews")
-      const data = await response.json()
+      const data = await apiFetch<{ reviews?: any[]; event?: any }>(`/api/events/${eventId}/reviews?includeReplies=true`, { auth: false })
       setReviews(data.reviews || [])
       setFilteredReviews(data.reviews || [])
       if (data.event) {
@@ -181,19 +180,17 @@ export default function FeedbackReplyManagement({ eventId }: { eventId: string }
     }
 
     try {
-      const response = await fetch(`/api/reviews/${reviewId}/replies`, {
+      const newReply = await apiFetch<{
+        id: string
+        content: string
+        isOrganizerReply: boolean
+        createdAt: string
+        user: { id: string; firstName: string; lastName: string; avatar?: string }
+      }>(`/api/reviews/${reviewId}/replies`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          content: replyContent,
-        }),
+        body: { content: replyContent.trim() },
+        auth: true,
       })
-
-      if (!response.ok) throw new Error("Failed to send reply")
-
-      const newReply = await response.json()
 
       setReviews((prevReviews) =>
         prevReviews.map((review) =>
@@ -225,11 +222,10 @@ export default function FeedbackReplyManagement({ eventId }: { eventId: string }
 
   const handleDeleteReply = async (reviewId: string, replyId: string) => {
     try {
-      const response = await fetch(`/api/reviews/${reviewId}/replies/${replyId}`, {
+      await apiFetch(`/api/reviews/${reviewId}/replies/${replyId}`, {
         method: "DELETE",
+        auth: true,
       })
-
-      if (!response.ok) throw new Error("Failed to delete reply")
 
       setReviews((prevReviews) =>
         prevReviews.map((review) =>

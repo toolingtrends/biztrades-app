@@ -15,7 +15,7 @@ import SpeakersTab from "./[id]/speakers-tab"
 import AddReviewCard from "@/components/AddReviewCard"
 import Link from "next/link"
 import EventFollowers from "@/components/EventFollowers"
-import { apiFetch } from "@/lib/api"
+import { apiFetch, getCurrentUserId, isAuthenticated, getCurrentUserRole } from "@/lib/api"
 
 interface PlaceToVisit {
   name: string;
@@ -67,8 +67,11 @@ const getCompanyInitials = (companyName?: string): string => {
   return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
 };
 
-export default function EventPageContent({ event, session, router, toast }: EventPageContentProps) {
-  // ALL useState calls must be at the top, before any conditional logic
+export default function EventPageContent({ event, session: _session, router, toast }: EventPageContentProps) {
+  // JWT auth: use token-based auth so "express interest" / save work when logged in with JWT
+  const userId = getCurrentUserId()
+  const isLoggedIn = isAuthenticated()
+
   const [isSaved, setIsSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [averageRating, setAverageRating] = useState(event.averageRating || 0)
@@ -80,25 +83,16 @@ export default function EventPageContent({ event, session, router, toast }: Even
   const [isOrganizer, setIsOrganizer] = useState(false)
 
   useEffect(() => {
-    // Set initial values from event
     setAverageRating(event.averageRating || 0)
     setTotalReviews(event.reviewCount || 0)
-    
-    // Fetch space costs if available
-    if (event.id) {
-      fetchSpaceCosts(event.id)
-    }
-    
-    // Load featured hotels
+    if (event.id) fetchSpaceCosts(event.id)
     loadFeaturedHotels()
-    
-    // Check if event is saved and get user role
-    if (event?.id && session?.user?.id) {
+    if (event?.id && userId) {
       checkIfSaved()
       checkUserRole()
       checkIfOrganizer()
     }
-  }, [event.id, session?.user?.id])
+  }, [event.id, userId])
 
   const getPlacesToVisit = (city: string): PlaceToVisit[] => {
     const placesByCity: Record<string, PlaceToVisit[]> = {
@@ -202,43 +196,31 @@ export default function EventPageContent({ event, session, router, toast }: Even
   }
 
   const checkIfSaved = async () => {
+    if (!userId) return
     try {
-      const response = await fetch(`/api/events/${event.id}/save`)
-      if (response.ok) {
-        const data = await response.json()
-        setIsSaved(data.isSaved)
-      }
+      const data = await apiFetch<{ isSaved?: boolean }>(`/api/events/${event.id}/save`, { auth: true })
+      setIsSaved(!!data?.isSaved)
     } catch (error) {
       console.error("Error checking saved status:", error)
     }
   }
 
   const checkUserRole = () => {
-    // Get user role from session
-    if (session?.user) {
-      const userWithRole = session.user as any
-      setUserRole(userWithRole.role || null)
-    }
+    const role = getCurrentUserRole()
+    setUserRole(role || null)
   }
 
   const checkIfOrganizer = () => {
-    if (session?.user && event?.organizer) {
-      const userId = session.user.id
+    if (userId && event?.organizer) {
       const organizerId = event.organizer.id || event.organizer._id
-
-      // Check if the logged-in user is the organizer of this event
-      if (userId === organizerId) {
-        setIsOrganizer(true)
-      } else {
-        setIsOrganizer(false)
-      }
+      setIsOrganizer(userId === organizerId)
     } else {
       setIsOrganizer(false)
     }
   }
 
   const handleSaveEvent = async () => {
-    if (!session) {
+    if (!isLoggedIn || !userId) {
       alert("Please log in to save events")
       router.push("/login")
       return
@@ -269,60 +251,38 @@ export default function EventPageContent({ event, session, router, toast }: Even
   }
 
   const handleVisitClick = async () => {
-    if (!session) {
+    if (!isLoggedIn || !userId) {
       alert("Authentication Required\nPlease log in to express interest in this event")
       router.push("/login")
       return
     }
 
     try {
-      const response = await fetch(`/api/events/${event.id}/leads`, {
+      await apiFetch(`/api/events/${event.id}/leads`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          type: "attendee",
-          userId: session.user.id,
-          eventId: event.id,
-        }),
+        body: { type: "attendee", userId, eventId: event.id },
+        auth: true,
       })
-
-      if (response.ok) {
-        alert("Your visit request has been sent to the organizer successfully!")
-      } else {
-        throw new Error("Failed to record interest")
-      }
+      alert("Your visit request has been sent to the organizer successfully!")
     } catch (error) {
       alert("Failed to record your interest. Please try again.")
     }
   }
 
   const handleExhibitClick = async () => {
-    if (!session) {
+    if (!isLoggedIn || !userId) {
       alert("Authentication Required\nPlease log in to express interest in exhibiting")
       router.push("/login")
       return
     }
 
     try {
-      const response = await fetch(`/api/events/${event.id}/leads`, {
+      await apiFetch(`/api/events/${event.id}/leads`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          type: "exhibitor",
-          userId: session.user.id,
-          eventId: event.id,
-        }),
+        body: { type: "exhibitor", userId, eventId: event.id },
+        auth: true,
       })
-
-      if (response.ok) {
-        alert("Your exhibition request has been sent to the organizer successfully!")
-      } else {
-        throw new Error("Failed to record interest")
-      }
+      alert("Your exhibition request has been sent to the organizer successfully!")
     } catch (error) {
       alert("Failed to record your interest. Please try again.")
     }
@@ -821,7 +781,7 @@ export default function EventPageContent({ event, session, router, toast }: Even
                 <EventFollowers eventId={event.id} />
 
                 {/* ADD REVIEW CARD */}
-                <AddReviewCard eventId={event.id} />
+                <AddReviewCard eventId={event.id} isOrganizer={isOrganizer} />
               </TabsContent>
 
               <TabsContent value="exhibitors">
@@ -1068,7 +1028,7 @@ export default function EventPageContent({ event, session, router, toast }: Even
                     <CardTitle>Reviews</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <AddReviewCard eventId={event.id} />
+                    <AddReviewCard eventId={event.id} isOrganizer={isOrganizer} />
                   </CardContent>
                 </Card>
               </TabsContent>

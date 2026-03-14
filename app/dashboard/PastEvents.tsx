@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent } from "@/components/ui/card"
@@ -9,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Heart, Calendar as CalendarIcon, MapPin } from "lucide-react"
 import { Event } from "./events-section" // reusing Event type
 import { TicketType } from "@prisma/client"
+import { apiFetch, getCurrentUserId } from "@/lib/api"
 
 /* ---------- Helpers ---------- */
 const DEFAULT_IMAGE = "/image/download2.jpg"
@@ -83,12 +83,11 @@ interface PastEventsProps {
 }
 
 export function PastEvents({ userId }: PastEventsProps) {
-  const { data: session } = useSession()
   const router = useRouter()
   const [pastEvents, setPastEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
 
-  const targetUserId = userId || session?.user?.id
+  const targetUserId = userId || (typeof window !== "undefined" ? getCurrentUserId() : null)
 
   useEffect(() => {
     if (!targetUserId) return
@@ -98,11 +97,9 @@ export function PastEvents({ userId }: PastEventsProps) {
   const fetchPastEvents = async () => {
     try {
       setLoading(true)
-      const res = await fetch(`/api/users/${targetUserId}/interested-events`)
-      if (!res.ok) throw new Error("Failed to fetch past events")
-      const data = await res.json()
+      const data = await apiFetch<{ events?: Event[]; data?: Event[] }>(`/api/users/${targetUserId}/interested-events`, { auth: true })
 
-      const events: Event[] = data?.events || []
+      const events: Event[] = data?.events ?? data?.data ?? []
       
       // Debug: Log all events and their dates
       console.log('=== DEBUG: All events from API ===')

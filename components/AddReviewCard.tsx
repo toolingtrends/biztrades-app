@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Star, MessageCircle, Send } from "lucide-react"
 import { format } from "date-fns"
-import { useSession } from "next-auth/react"
+import { apiFetch } from "@/lib/api"
 
 interface ReviewReply {
   id: string
@@ -48,45 +48,12 @@ export default function Reviews({ eventId, isOrganizer = false }: ReviewsProps) 
   const fetchReviews = async () => {
     try {
       setLoading(true)
-      const res = await fetch(`/api/events/${eventId}/reviews`)
-      
-      if (!res.ok) {
-        throw new Error('Failed to fetch reviews')
-      }
-      
-      const data = await res.json()
-console.log('Fetched reviews:', data)
-
-// Use data.reviews instead of data
-const reviewsWithReplies = await Promise.all(
-  (data.reviews || []).map(async (review: Review) => {
-    // <CHANGE> Only fetch replies if the current user is an organizer
-    if (!isOrganizer) {
-      return { ...review, replies: [] }
-    }
-
-    try {
-      console.log(`Fetching replies for review ${review.id}`)
-      const repliesRes = await fetch(`/api/reviews/${review.id}/replies`)
-      
-      if (repliesRes.ok) {
-        const repliesData = await repliesRes.json()
-        return { ...review, replies: repliesData.replies || [] }
-      }
-    } catch (error) {
-      console.error(`Error fetching replies for review ${review.id}:`, error)
-    }
-    return { ...review, replies: [] }
-  })
-)
-
-setReviews(reviewsWithReplies)
-
-      
-      
+      // Always include replies so organizer replies display for everyone
+      const data = await apiFetch<{ reviews?: Review[] }>(`/api/events/${eventId}/reviews?includeReplies=true`, { auth: false })
+      setReviews(data.reviews || [])
     } catch (err) {
-      console.error('Error in fetchReviews:', err) // Debug log
-      setError(err instanceof Error ? err.message : 'Failed to fetch reviews')
+      console.error("Error in fetchReviews:", err)
+      setError(err instanceof Error ? err.message : "Failed to fetch reviews")
     } finally {
       setLoading(false)
     }
@@ -168,12 +135,17 @@ function ReviewCard({
   isOrganizer?: boolean
   onReplyAdded: (reviewId: string) => void
 }) {
-  const [showReplies, setShowReplies] = useState(false)
-  const [showReplyForm, setShowReplyForm] = useState(false)
-
   const hasReplies = review.replies && review.replies.length > 0
-  
-  console.log(`Review ${review.id} has replies:`, hasReplies, review.replies) // Debug log
+  const [showReplies, setShowReplies] = useState(!!hasReplies)
+  const [showReplyForm, setShowReplyForm] = useState(false)
+  const prevRepliesCount = useRef(review.replies?.length ?? 0)
+  useEffect(() => {
+    const count = review.replies?.length ?? 0
+    if (count > 0 && count !== prevRepliesCount.current) {
+      setShowReplies(true)
+      prevRepliesCount.current = count
+    }
+  }, [review.replies?.length])
 
   return (
     <Card>
@@ -270,28 +242,15 @@ function ReviewCard({
           />
         )}
 
-        {/* Replies List - Always show if there are replies and user clicked show */}
+        {/* Replies List - show when user expands replies */}
         {showReplies && hasReplies && (
           <div className="mt-4 space-y-3 bg-gray-50 p-4 rounded-lg">
-            <h6 className="font-medium text-sm text-gray-700">Replies:</h6>
+            <h6 className="font-medium text-sm text-gray-700">Replies</h6>
             {review.replies?.map((reply) => (
               <ReplyCard key={reply.id} reply={reply} />
             ))}
           </div>
         )}
-
-        {/* Debug section - remove in production */}
-        <details className="mt-4 text-xs text-gray-500">
-          <summary>Debug Info</summary>
-          <pre>{JSON.stringify({ 
-            reviewId: review.id, 
-            repliesCount: review.replies?.length || 0,
-            hasReplies,
-            showReplies,
-            isOrganizer,
-            replies: review.replies 
-          }, null, 2)}</pre>
-        </details>
       </CardContent>
     </Card>
   )
@@ -353,29 +312,15 @@ function ReplyForm({
 
     setIsSubmitting(true)
     try {
-      console.log(`Submitting reply for review ${reviewId}:`, content) // Debug log
-      
-      const res = await fetch(`/api/reviews/${reviewId}/replies`, {
+      await apiFetch(`/api/reviews/${reviewId}/replies`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        body: { content: content.trim() },
+        auth: true,
       })
-
-      console.log('Reply submission response:', res.status) // Debug log
-
-      if (res.ok) {
-        const responseData = await res.json()
-        console.log('Reply created:', responseData) // Debug log
-        setContent("")
-        onReplySubmitted(reviewId)
-      } else {
-        const error = await res.json()
-        console.error('Reply submission error:', error) // Debug log
-        alert(`❌ ${error.error || "Failed to add reply"}`)
-      }
-    } catch (err) {
-      console.error('Reply submission exception:', err)
-      alert("⚠️ Something went wrong")
+      setContent("")
+      onReplySubmitted(reviewId)
+    } catch (err: any) {
+      alert(err?.message || "Failed to add reply")
     } finally {
       setIsSubmitting(false)
     }
@@ -424,25 +369,19 @@ function AddReviewCard({ eventId, onReviewAdded }: AddReviewCardProps) {
 
     setIsSubmitting(true)
     try {
-      const res = await fetch(`/api/events/${eventId}/reviews`, {
+      await apiFetch(`/api/events/${eventId}/reviews`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rating, title, comment: feedback }),
+        body: { rating, title, comment: feedback },
+        auth: true,
       })
-
-      if (res.ok) {
-        alert("✅ Review added successfully!")
-        setRating(0)
-        setTitle("")
-        setFeedback("")
-        onReviewAdded()
-      } else {
-        const error = await res.json()
-        alert(`❌ ${error.error || "Failed to add review"}`)
-      }
-    } catch (err) {
+      alert("✅ Review added successfully!")
+      setRating(0)
+      setTitle("")
+      setFeedback("")
+      onReviewAdded()
+    } catch (err: any) {
       console.error(err)
-      alert("⚠️ Something went wrong")
+      alert(err?.message || "⚠️ Something went wrong")
     } finally {
       setIsSubmitting(false)
     }

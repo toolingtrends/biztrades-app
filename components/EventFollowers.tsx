@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Users, Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useSession } from "next-auth/react";
+import { apiFetch, getCurrentUserId } from "@/lib/api";
 
 interface SavedEvent {
   _id: string;
@@ -49,26 +49,18 @@ export default function EventFollowers({ eventId }: EventFollowersProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connectingUsers, setConnectingUsers] = useState<Set<string>>(new Set());
-  const { data: session } = useSession();
+  const userId = getCurrentUserId();
 
   useEffect(() => {
     async function fetchData() {
       try {
         setLoading(true);
-        
-        // Fetch followers
-        const followersResponse = await fetch(`/api/events/${eventId}/followers`);
-        if (!followersResponse.ok) throw new Error("Failed to fetch followers");
-        const followersData = await followersResponse.json();
+        const followersData = await apiFetch<{ followers?: SavedEvent[] }>(`/api/events/${eventId}/followers`, { auth: false });
         setFollowers(followersData.followers || []);
 
-        // Fetch current user's connections if logged in
-        if (session?.user?.id) {
-          const connectionsResponse = await fetch(`/api/users/${session.user.id}/connections`);
-          if (connectionsResponse.ok) {
-            const connectionsData = await connectionsResponse.json();
-            setConnections(connectionsData.connections || []);
-          }
+        if (userId) {
+          const connectionsData = await apiFetch<{ connections?: Connection[] }>(`/api/users/${userId}/connections`, { auth: true });
+          setConnections(connectionsData.connections || []);
         }
       } catch (err) {
         console.error("Error fetching data:", err);
@@ -79,39 +71,27 @@ export default function EventFollowers({ eventId }: EventFollowersProps) {
     }
 
     if (eventId) fetchData();
-  }, [eventId, session]);
+  }, [eventId, userId]);
 
   const handleConnect = async (follower: SavedEvent) => {
-    if (!session?.user?.id) {
+    if (!userId) {
       alert("Please log in to connect with users");
       return;
     }
 
-    const targetUserId = follower.user?.id || follower.userId;
+    const targetUserId = follower.user?.id || (follower as any).userId;
     
     try {
       setConnectingUsers(prev => new Set(prev).add(targetUserId));
-      
-      // Make API call to create connection
-      const response = await fetch(`/api/users/${session.user.id}/connections`, {
+      const result = await apiFetch<{ connection?: { id: string } }>(`/api/users/${userId}/connections`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+        body: {
           receiverId: targetUserId,
-          message: `I'd like to connect with you regarding the event`
-        })
+          message: `I'd like to connect with you regarding the event`,
+        },
+        auth: true,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to send connection request");
-      }
-
-      const result = await response.json();
-      
-      // Update connections state
       setConnections(prev => [...prev, {
         id: targetUserId,
         firstName: follower.user?.firstName || "",
@@ -120,7 +100,7 @@ export default function EventFollowers({ eventId }: EventFollowersProps) {
         company: follower.user?.company,
         avatar: follower.user?.avatar,
         status: "pending",
-        connectionId: result.connection?.id,
+        connectionId: result?.connection?.id,
         isOutgoing: true
       }]);
 
@@ -255,10 +235,10 @@ export default function EventFollowers({ eventId }: EventFollowersProps) {
               const targetUserId = follower.user?.id || follower.userId;
               const connection = getConnectionStatus(targetUserId);
               const isConnecting = connectingUsers.has(targetUserId);
-              const isCurrentUser = session?.user?.id === targetUserId;
+              const isCurrentUser = userId === targetUserId;
 
               // Create a unique key by combining _id with index
-              const uniqueKey = `${follower._id}-${index}-${targetUserId}`;
+              const uniqueKey = `${(follower as any).id ?? follower._id}-${index}-${targetUserId}`;
 
               return (
                 <div

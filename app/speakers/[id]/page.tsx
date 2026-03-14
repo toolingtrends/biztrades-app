@@ -137,22 +137,15 @@ export default function SpeakerPage({ params }: SpeakerPageProps) {
       try {
         setHeroBannersLoading(true)
         // Fetch banners specifically for speaker-detail page with hero position
-        const res = await fetch(`/api/content/banners?page=speaker-detail&position=hero`)
-        
-        if (res.ok) {
-          const data = await res.json()
-          // Filter only active banners
-          const activeHeroBanners = data.filter((banner: Banner) => banner.isActive)
-          setHeroBanners(activeHeroBanners)
-          
-          // Start auto-rotation if we have multiple banners
-          if (activeHeroBanners.length > 1) {
-            const interval = setInterval(() => {
-              setCurrentBannerIndex((prev) => (prev + 1) % activeHeroBanners.length)
-            }, 8000) // Change banner every 8 seconds
-            
-            return () => clearInterval(interval)
-          }
+        const data = await apiFetch<Banner[]>(`/api/content/banners?page=speaker-detail&position=hero`, { auth: false })
+        const list = Array.isArray(data) ? data : []
+        const activeHeroBanners = list.filter((banner: Banner) => banner.isActive !== false)
+        setHeroBanners(activeHeroBanners)
+        if (activeHeroBanners.length > 1) {
+          const interval = setInterval(() => {
+            setCurrentBannerIndex((prev) => (prev + 1) % activeHeroBanners.length)
+          }, 8000)
+          return () => clearInterval(interval)
         }
       } catch (error) {
         console.error("Error fetching hero banners:", error)

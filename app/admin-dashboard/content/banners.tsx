@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
+import { apiFetch } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -88,9 +89,8 @@ export default function BannersPage() {
   const fetchBanners = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/content/banners")
-      const data = await response.json()
-      setBanners(data)
+      const data = await apiFetch<unknown[]>("/api/content/banners", { auth: false })
+      setBanners(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error("Error fetching banners:", error)
     } finally {
@@ -138,22 +138,21 @@ export default function BannersPage() {
       formData.append("page", uploadForm.page)
       formData.append("position", uploadForm.position)
 
-      const response = await fetch("/api/content/banners", {
+      const newBanner = await apiFetch<{ id: string; title: string; imageUrl: string; page: string }>("/api/content/banners", {
         method: "POST",
         body: formData,
+        auth: true,
       })
-
-      if (response.ok) {
-        const newBanner = await response.json()
-        setBanners([newBanner, ...banners])
+      if (newBanner && typeof newBanner === "object" && "id" in newBanner) {
+        setBanners([newBanner as any, ...banners])
         setIsUploadDialogOpen(false)
         setUploadForm({ title: "", page: "", position: "hero", file: null })
       } else {
-        alert("Failed to upload banner")
+        alert("Banner upload not supported by backend yet")
       }
-    } catch (error) {
-      console.error("Error uploading banner:", error)
-      alert("Error uploading banner")
+    } catch (err: any) {
+      console.error("Error uploading banner:", err)
+      alert(err?.message || "Banner upload not supported by backend")
     } finally {
       setUploading(false)
     }

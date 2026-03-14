@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
-import { useSession } from "next-auth/react"
+import { getCurrentUserId, isAuthenticated } from "@/lib/api"
 import {
   MapPin,
   Phone,
@@ -144,6 +144,13 @@ interface VenueResponse {
   data: Venue
 }
 
+interface ReviewReply {
+  id: string
+  content: string
+  createdAt: string
+  isOrganizerReply?: boolean
+  user?: { id: string; firstName: string; lastName: string; avatar?: string | null } | null
+}
 interface Review {
   id: string
   rating: number
@@ -156,6 +163,7 @@ interface Review {
     lastName: string
     avatar?: string
   }
+  replies?: ReviewReply[]
 }
 
 interface ticketTypes {
@@ -216,11 +224,9 @@ export default function VenueDetailPage() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [schedulingMeeting, setSchedulingMeeting] = useState(false)
   const { toast } = useToast()
-  const { data: session } = useSession()
 
-  // Get user role from session
-  const userRole = (session?.user as any)?.role || null
-  const showScheduleMeeting = userRole === "ORGANIZER" || userRole === "VENUE_MANAGER"
+  // Show Schedule Meeting for any authenticated user (JWT)
+  const showScheduleMeeting = isAuthenticated()
 
   useEffect(() => {
     if (venueId) {
@@ -260,21 +266,16 @@ export default function VenueDetailPage() {
 
     setReviewsLoading(true)
     try {
-      const res = await fetch(`/api/venues/${venueId}/reviews`)
-      if (res.ok) {
-        const data = await res.json()
-        // Ensure we have a valid array and each review has required properties
-        const safeReviews = Array.isArray(data.reviews)
-          ? data.reviews.filter((review: any) => review && typeof review.rating === "number" && review.user)
-          : []
-        setReviews(safeReviews)
-      } else {
-        console.error("Failed to fetch reviews")
-        setReviews([]) // Set empty array on error
-      }
-    } catch (error) {
-      console.error("Error fetching reviews:", error)
-      setReviews([]) // Set empty array on error
+      const data = await apiFetch<{ success?: boolean; reviews?: Review[] }>(
+        `/api/venues/${venueId}/reviews?includeReplies=true`,
+        { auth: false }
+      )
+      const safeReviews = Array.isArray(data?.reviews)
+        ? data.reviews.filter((r: any) => r && typeof r.rating === "number" && r.user)
+        : []
+      setReviews(safeReviews)
+    } catch {
+      setReviews([])
     } finally {
       setReviewsLoading(false)
     }
@@ -445,21 +446,22 @@ export default function VenueDetailPage() {
   const handleScheduleMeeting = async () => {
     if (!venue) return
 
+    const userId = getCurrentUserId()
+    if (!userId) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to schedule meetings.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       setSchedulingMeeting(true)
 
-      // Verify we have a valid session
-      if (!session?.user?.id) {
-        toast({
-          title: "Authentication Required",
-          description: "Please log in to schedule meetings.",
-          variant: "destructive",
-        })
-        return
-      }
-
       const body = {
         venueId: venue.manager.id,
+        visitorId: userId,
         title: `Meeting at ${venue.name}`,
         description: `Meeting request with ${venue.manager.name} at ${venue.name}`,
         type: "VENUE_TOUR",
@@ -468,13 +470,17 @@ export default function VenueDetailPage() {
         duration: 30,
         meetingType: "IN_PERSON",
         purpose: "Venue Inquiry and Tour",
-        location: venue.location.address || venue.venueAddress,
+        location: venue.location?.address || venue.venueAddress,
         meetingSpacesInterested: venue.meetingSpaces?.map((space) => space.name) || [],
       }
 
+      const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null
       const res = await fetch(`/api/venue-appointments`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(body),
       })
 
@@ -1187,7 +1193,12 @@ export default function VenueDetailPage() {
                         <div className="space-y-4 max-h-[600px] overflow-y-auto p-6 pt-0">
                           {reviews.map((review) => (
                             <div key={review.id} className="pb-4 border-b last:border-b-0 last:pb-0">
-                              <VenueReviewCard review={review} />
+                              <VenueReviewCard
+                                review={review}
+                                venueName={venue?.name || venue?.venueName}
+                                venueManagerName={venue?.manager?.name}
+                                venueManagerAvatar={venue?.manager?.avatar}
+                              />
                             </div>
                           ))}
                         </div>

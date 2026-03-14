@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
@@ -13,6 +12,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { format } from "date-fns"
+import { apiFetch, getCurrentUserId } from "@/lib/api"
 
 /**
  * Full EventsSection component
@@ -149,7 +149,6 @@ const statusPillClass = (status?: string) => {
 /* ---------- Component ---------- */
 export function EventsSection({ userId }: EventsSectionProps) {
   const router = useRouter()
-  const { data: session, status } = useSession()
   const [interestedEvents, setInterestedEvents] = useState<Event[]>([])
   const [interestedLoading, setInterestedLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -161,10 +160,9 @@ export function EventsSection({ userId }: EventsSectionProps) {
   })
   const [showCalendarFilter, setShowCalendarFilter] = useState(false)
 
-  const targetUserId = userId || session?.user?.id
+  const targetUserId = userId || getCurrentUserId()
 
   useEffect(() => {
-    if (status === "loading") return
     if (!targetUserId) {
       setError("User not authenticated")
       setInterestedLoading(false)
@@ -172,7 +170,7 @@ export function EventsSection({ userId }: EventsSectionProps) {
     }
     fetchInterestedEvents()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetUserId, status])
+  }, [targetUserId])
 
   // Fetch interested events from API
   const fetchInterestedEvents = async () => {
@@ -181,16 +179,10 @@ export function EventsSection({ userId }: EventsSectionProps) {
       setInterestedLoading(true)
       setError(null)
 
-      const response = await fetch(`/api/users/${targetUserId}/interested-events`)
-      if (!response.ok) {
-        const text = await response.text().catch(() => "")
-        throw new Error(text || "Failed to fetch interested events")
-      }
+      const data = await apiFetch<{ events?: Event[]; data?: Event[] }>(`/api/users/${targetUserId}/interested-events`, { auth: true })
 
-      const data = await response.json()
-
-      // API might return `events` or raw array
-      const events: Event[] = data?.events || data || []
+      // API might return `events` or `data`
+      const events: Event[] = data?.events ?? data?.data ?? []
 
       // Normalize date strings (ensure ISO-like string)
       const normalized = events.map((ev) => ({
@@ -256,7 +248,7 @@ export function EventsSection({ userId }: EventsSectionProps) {
   const expiredEventsCount = filterEventsByDate(interestedEvents).length - filteredEvents.length
 
   /* ---------- UI: Loading / Error States ---------- */
-  if (status === "loading" || interestedLoading) {
+  if (interestedLoading) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">

@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
+import { getCurrentUserId } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -106,13 +107,23 @@ export default function ExhibitorManual({ eventId, userId }: ExhibitorManualProp
       return
     }
 
+    const uploaderId = userId || getCurrentUserId()
+    if (!uploaderId) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to upload documents.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setUploading(true)
 
     try {
       const formData = new FormData()
       formData.append("file", file)
       formData.append("eventId", eventId)
-      formData.append("uploadedById", userId)
+      formData.append("uploadedById", uploaderId)
       if (description) {
         formData.append("description", description)
       }
@@ -123,8 +134,9 @@ export default function ExhibitorManual({ eventId, userId }: ExhibitorManualProp
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Upload failed")
+        const err = await response.json().catch(() => ({}))
+        const msg = err.details || err.error || "Upload failed"
+        throw new Error(msg)
       }
 
       const result = await response.json()

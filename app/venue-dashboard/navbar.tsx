@@ -4,8 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ChevronDown, User, LogOut, Settings } from "lucide-react";
-import { signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { isAuthenticated, getCurrentUserId, getCurrentUserRole, clearTokens } from "@/lib/api";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,21 +19,20 @@ import { NotificationsDropdown } from "@/components/notifications-dropdown";
 
 export default function Navbar() {
   const [exploreOpen, setExploreOpen] = useState(false);
-  const { data: session, status } = useSession();
   const router = useRouter();
   const { setActiveSection } = useDashboard();
 
   const toggleExplore = () => setExploreOpen((prev) => !prev);
 
-  const handleAddevent = async () => {
-    if (!session) {
+  const handleAddevent = () => {
+    if (!isAuthenticated()) {
       alert("You are not logged in. Please login as an organizer.");
       router.push("/login");
       return;
     }
 
-    const role = session.user?.role;
-    const id = session.user?.id;
+    const role = getCurrentUserRole();
+    const id = getCurrentUserId();
     if (role === "VENUE_MANAGER" || role === "venue_manager") {
       if (id) {
         router.push(`/venue-dashboard/${id}`);
@@ -42,13 +41,18 @@ export default function Navbar() {
       }
     } else {
       const confirmed = window.confirm(
-        `You are logged in as '${role}'.\n\nPlease login as an organizer to access this page.\n\nClick OK to logout and login as an organizer, or Cancel to stay logged in.`
+        `You are logged in as '${role ?? "user"}'.\n\nPlease login as an organizer to access this page.\n\nClick OK to logout and login as an organizer, or Cancel to stay logged in.`
       );
       if (confirmed) {
-        await signOut({ redirect: false });
+        clearTokens();
         router.push("/login");
       }
     }
+  };
+
+  const handleLogout = () => {
+    clearTokens();
+    router.push("/login");
   };
 
   // Navigation functions using dashboard context
@@ -59,14 +63,6 @@ export default function Navbar() {
   const navigateToSettings = () => {
     setActiveSection("settings");
   };
-
-  if (status === "loading") {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p>Loading...</p>
-      </div>
-    );
-  }
 
   return (
     <nav className="bg-white shadow-sm">
@@ -161,7 +157,7 @@ export default function Navbar() {
                   <span>Settings</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>
+                <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Logout</span>
                 </DropdownMenuItem>

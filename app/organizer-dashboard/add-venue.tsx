@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { apiFetch } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -66,11 +67,12 @@ export default function AddVenue({ organizerId, onVenueChange, selectedVenueId }
 
   // New venue form state
   const [newVenue, setNewVenue] = useState({
-    // Manager Information
+    // Venue Manager Information
     firstName: "",
     lastName: "",
     email: "",
     phone: "",
+    tempPassword: "",
 
     // Venue Information
     venueName: "",
@@ -192,7 +194,7 @@ export default function AddVenue({ organizerId, onVenueChange, selectedVenueId }
   }
 
   const handleCreateVenue = async () => {
-    if (!newVenue.venueName) {
+    if (!newVenue.venueName?.trim()) {
       toast({
         title: "Missing Information",
         description: "Please enter the venue name.",
@@ -200,90 +202,95 @@ export default function AddVenue({ organizerId, onVenueChange, selectedVenueId }
       })
       return
     }
+    if (!newVenue.email?.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter the venue manager email.",
+        variant: "destructive",
+      })
+      return
+    }
 
     setLoading(true)
     try {
-      const response = await fetch(`/api/venue-manager/${organizerId}`, {
+      const responseData = await apiFetch<{
+        venueId?: string
+        id?: string
+        data?: { venueManager?: { id: string } }
+      }>(`/api/venue-manager/${organizerId}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          venueName: newVenue.venueName,
+        body: {
+          venueName: newVenue.venueName.trim(),
           logo: "",
-          contactPerson: `${newVenue.firstName} ${newVenue.lastName}`,
-          email: newVenue.email,
-          mobile: newVenue.phone,
-          venueAddress: newVenue.venueAddress,
-          venueCity: newVenue.venuecity,
-          venueState: newVenue.venuestate,
-          venueCountry: newVenue.venuecountry,
-          venueZipCode: newVenue.venuepostalCode,
-          website: newVenue.website,
-          venueDescription: newVenue.venueDescription,
-          maxCapacity: newVenue.maxCapacity ? Number.parseInt(newVenue.maxCapacity) : 0,
-          totalHalls: newVenue.totalHalls ? Number.parseInt(newVenue.totalHalls) : 0,
+          contactPerson: `${newVenue.firstName} ${newVenue.lastName}`.trim() || undefined,
+          firstName: newVenue.firstName.trim() || undefined,
+          lastName: newVenue.lastName.trim() || undefined,
+          email: newVenue.email.trim(),
+          mobile: newVenue.phone.trim() || undefined,
+          tempPassword: newVenue.tempPassword.trim() || undefined,
+          venueAddress: newVenue.venueAddress.trim() || undefined,
+          venueCity: newVenue.venuecity.trim() || undefined,
+          venueState: newVenue.venuestate.trim() || undefined,
+          venueCountry: newVenue.venuecountry.trim() || undefined,
+          venueZipCode: newVenue.venuepostalCode.trim() || undefined,
+          website: newVenue.website.trim() || undefined,
+          venueDescription: newVenue.venueDescription.trim() || undefined,
+          maxCapacity: newVenue.maxCapacity ? Number.parseInt(newVenue.maxCapacity, 10) : 0,
+          totalHalls: newVenue.totalHalls ? Number.parseInt(newVenue.totalHalls, 10) : 0,
           activeBookings: 0,
           averageRating: 0,
           totalReviews: 0,
           amenities: newVenue.amenities,
           meetingSpaces: meetingSpaces.filter((space) => space.name.trim() !== ""),
-        }),
+        },
+        auth: true,
       })
 
-      if (response.ok) {
-        const responseData = await response.json()
+      const venueId =
+        responseData.venueId ||
+        responseData.id ||
+        responseData.data?.venueManager?.id
 
-        toast({
-          title: "Success",
-          description: "Venue created and added to your event.",
+      toast({
+        title: "Success",
+        description: "Venue created and added to your event.",
+      })
+
+      if (onVenueChange && venueId) {
+        onVenueChange({
+          venueId,
+          venueName: newVenue.venueName,
+          venueAddress: newVenue.venueAddress || "Address not provided",
+          city: newVenue.venuecity || "City not provided",
+          state: newVenue.venuestate,
+          country: newVenue.venuecountry,
         })
-
-        if (onVenueChange) {
-          onVenueChange({
-            venueId: responseData.venueId || responseData.id,
-            venueName: newVenue.venueName,
-            venueAddress: newVenue.venueAddress || "Address not provided",
-            city: newVenue.venuecity || "City not provided",
-            state: newVenue.venuestate,
-            country: newVenue.venuecountry,
-          })
-        }
-
-        // Reset form
-        setNewVenue({
-          firstName: "",
-          lastName: "",
-          email: "",
-          phone: "",
-          venueName: "",
-          venueDescription: "",
-          website: "",
-          maxCapacity: "",
-          totalHalls: "",
-          basePrice: "",
-          venueAddress: "",
-          venuecity: "",
-          venuestate: "",
-          venuecountry: "",
-          venuepostalCode: "",
-          amenities: [],
-        })
-        setMeetingSpaces([
-          {
-            name: "",
-            capacity: 0,
-            area: 0,
-            hourlyRate: 0,
-            features: [],
-          },
-        ])
-
-        // Refresh venues list and switch to existing tab
-        fetchVenues()
-        setActiveTab("existing")
-      } else {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to create venue")
       }
+
+      setNewVenue({
+        firstName: "",
+        lastName: "",
+        email: "",
+        phone: "",
+        tempPassword: "",
+        venueName: "",
+        venueDescription: "",
+        website: "",
+        maxCapacity: "",
+        totalHalls: "",
+        basePrice: "",
+        venueAddress: "",
+        venuecity: "",
+        venuestate: "",
+        venuecountry: "",
+        venuepostalCode: "",
+        amenities: [],
+      })
+      setMeetingSpaces([
+        { name: "", capacity: 0, area: 0, hourlyRate: 0, features: [] },
+      ])
+      fetchVenues()
+      setActiveTab("existing")
     } catch (error) {
       toast({
         title: "Error",
@@ -439,6 +446,66 @@ export default function AddVenue({ organizerId, onVenueChange, selectedVenueId }
             <TabsContent value="new" className="space-y-6">
               {/* Create New Venue Form */}
               <div className="space-y-8">
+                {/* Venue Manager Information */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Venue Manager</h3>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="firstName">Manager First Name</Label>
+                        <Input
+                          id="firstName"
+                          value={newVenue.firstName}
+                          onChange={(e) => setNewVenue({ ...newVenue, firstName: e.target.value })}
+                          placeholder="John"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="lastName">Manager Last Name</Label>
+                        <Input
+                          id="lastName"
+                          value={newVenue.lastName}
+                          onChange={(e) => setNewVenue({ ...newVenue, lastName: e.target.value })}
+                          placeholder="Doe"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="email">Email *</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={newVenue.email}
+                        onChange={(e) => setNewVenue({ ...newVenue, email: e.target.value })}
+                        placeholder="venue.manager@example.com"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="tempPassword">Temporary Password</Label>
+                      <Input
+                        id="tempPassword"
+                        type="password"
+                        value={newVenue.tempPassword}
+                        onChange={(e) => setNewVenue({ ...newVenue, tempPassword: e.target.value })}
+                        placeholder="Leave blank to use default (TEMP_PASSWORD)"
+                        autoComplete="new-password"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Venue manager can change this on first login.
+                      </p>
+                    </div>
+                    <div>
+                      <Label htmlFor="phone">Phone</Label>
+                      <Input
+                        id="phone"
+                        value={newVenue.phone}
+                        onChange={(e) => setNewVenue({ ...newVenue, phone: e.target.value })}
+                        placeholder="+1 234 567 8900"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 {/* Venue Information */}
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Venue Information</h3>
@@ -465,9 +532,8 @@ export default function AddVenue({ organizerId, onVenueChange, selectedVenueId }
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Address Information */}
+                {/* Address Information */}
               <div>
                 <h3 className="text-lg font-semibold mb-4">Address Information</h3>
                 <div className="space-y-4">
@@ -529,6 +595,7 @@ export default function AddVenue({ organizerId, onVenueChange, selectedVenueId }
                 <Button onClick={handleCreateVenue} disabled={loading}>
                   {loading ? "Creating..." : "Create Venue"}
                 </Button>
+              </div>
               </div>
             </TabsContent>
           </Tabs>

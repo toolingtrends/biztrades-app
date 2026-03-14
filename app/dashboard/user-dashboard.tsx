@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/use-auth"
-import { clearTokens } from "@/lib/api"
+import { apiFetch, clearTokens } from "@/lib/api"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
@@ -47,7 +47,7 @@ interface UserDashboardProps {
 }
 
 export function UserDashboard({ userId }: UserDashboardProps) {
-  const { userId, loading } = useAuth({ requireAuth: true })
+  const { userId: authUserId, loading: authLoading } = useAuth({ requireAuth: true })
   const router = useRouter()
   const { toast } = useToast()
   const { activeSection, setActiveSection } = useDashboard()
@@ -62,13 +62,11 @@ export function UserDashboard({ userId }: UserDashboardProps) {
   const [interestedEvents, setInterestedEvents] = useState<any[]>([])
 
   useEffect(() => {
-    if (status === "loading") return
-    
-    if (!loading && userId) {
-      fetchUserData()
-      fetchInterestedEvents()
-    }
-  }, [loading, userId])
+    if (authLoading || !userId) return
+
+    fetchUserData()
+    fetchInterestedEvents()
+  }, [authLoading, userId])
 
   // Close mobile sidebar when switching sections
   useEffect(() => {
@@ -111,19 +109,14 @@ export function UserDashboard({ userId }: UserDashboardProps) {
 
   const fetchInterestedEvents = async () => {
     try {
-      const response = await fetch(`/api/users/${userId}/interested-events`)
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch interested events: ${response.status}`)
-      }
-      
-      const data = await response.json()
-      
+      const data = await apiFetch<{ events?: any[]; data?: any[] }>(`/api/users/${userId}/interested-events`, { auth: true })
+      const list = data.events ?? data.data ?? []
       // Ensure unique events to prevent duplicate key errors
-      const uniqueEvents = data.events ? 
-        data.events.filter((event: any, index: number, self: any[]) => 
-          index === self.findIndex((e: any) => e.id === event.id)
-        ) : []
+      const uniqueEvents = Array.isArray(list)
+        ? list.filter((event: any, index: number, self: any[]) =>
+            index === self.findIndex((e: any) => e.id === event.id)
+          )
+        : []
         
       setInterestedEvents(uniqueEvents)
     } catch (err) {

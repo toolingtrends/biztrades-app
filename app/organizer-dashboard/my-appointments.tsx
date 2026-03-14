@@ -381,14 +381,17 @@ const cancelAppointment = async (appointmentId: string) => {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {filteredAppointments.map((appointment) => (
+        {filteredAppointments.map((appointment) => {
+          const venue = appointment.venue ?? { id: "", firstName: "Venue", lastName: "", email: "" }
+          const venueInitial = (venue.firstName?.[0] ?? venue.lastName?.[0] ?? "V").toUpperCase()
+          return (
           <Card key={appointment.id} className="overflow-hidden hover:shadow-lg transition-shadow w-full">
             <div className="flex flex-col md:flex-row">
               {/* Avatar Section - Fixed to prevent image errors */}
               <div className="relative w-full md:w-1/3 h-48 bg-gray-100 flex items-center justify-center">
                 <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
                   <div className="text-2xl font-bold text-blue-600">
-                    {appointment.venue.firstName[0]?.toUpperCase() || "V"}
+                    {venueInitial}
                   </div>
                 </div>
                 <div className="absolute top-4 right-4 flex flex-col gap-2">
@@ -402,7 +405,7 @@ const cancelAppointment = async (appointmentId: string) => {
                   <div>
                     <h3 className="font-semibold text-xl line-clamp-1">{appointment.title}</h3>
                     <p className="text-sm text-gray-600 line-clamp-2">
-                      with {appointment.venue.firstName} {appointment.venue.lastName}
+                      with {venue.firstName} {venue.lastName}
                     </p>
                     <div className="flex flex-wrap gap-2 mt-2">
                       <Badge variant="outline">{getTypeLabel(appointment.type)}</Badge>
@@ -426,7 +429,7 @@ const cancelAppointment = async (appointmentId: string) => {
                     </div>
                     <div className="flex items-center gap-2">
                       <Mail className="w-4 h-4" />
-                      <span className="line-clamp-1">{appointment.venue.email}</span>
+                      <span className="line-clamp-1">{venue.email || "—"}</span>
                     </div>
                     {appointment.requesterPhone && (
                       <div className="flex items-center gap-2">
@@ -486,7 +489,8 @@ const cancelAppointment = async (appointmentId: string) => {
               </CardContent>
             </div>
           </Card>
-        ))}
+          )
+        })}
       </div>
 
       {/* Dialog moved outside the map loop to prevent infinite re-renders */}
@@ -495,18 +499,21 @@ const cancelAppointment = async (appointmentId: string) => {
           <DialogHeader>
             <DialogTitle>Appointment Details</DialogTitle>
           </DialogHeader>
-          {selectedAppointment && (
+          {selectedAppointment && (() => {
+            const selVenue = selectedAppointment.venue ?? { id: "", firstName: "Venue", lastName: "", email: "" }
+            const selVenueInitial = (selVenue.firstName?.[0] ?? selVenue.lastName?.[0] ?? "V").toUpperCase()
+            return (
             <div className="space-y-4">
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
                   <div className="text-xl font-bold text-blue-600">
-                    {selectedAppointment.venue.firstName[0]?.toUpperCase() || "V"}
+                    {selVenueInitial}
                   </div>
                 </div>
                 <div>
                   <h3 className="font-semibold text-lg">{selectedAppointment.title}</h3>
                   <p className="text-gray-600">
-                    with {selectedAppointment.venue.firstName} {selectedAppointment.venue.lastName}
+                    with {selVenue.firstName} {selVenue.lastName}
                   </p>
                   <div className="flex gap-2 mt-1">
                     <Badge variant={getStatusColor(selectedAppointment.status)}>
@@ -554,7 +561,7 @@ const cancelAppointment = async (appointmentId: string) => {
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Venue Email:</span>
-                      <span>{selectedAppointment.venue.email}</span>
+                      <span>{selVenue.email || "—"}</span>
                     </div>
                     {selectedAppointment.requesterPhone && (
                       <div className="flex justify-between">
@@ -628,7 +635,7 @@ const cancelAppointment = async (appointmentId: string) => {
                 </div>
               )}
 
-              {selectedAppointment.meetingSpacesInterested.length > 0 && (
+              {(selectedAppointment.meetingSpacesInterested?.length ?? 0) > 0 && (
                 <div>
                   <h4 className="font-medium mb-2">Meeting Spaces Interested</h4>
                   <div className="flex flex-wrap gap-2">
@@ -641,7 +648,7 @@ const cancelAppointment = async (appointmentId: string) => {
                 </div>
               )}
 
-              {selectedAppointment.agenda.length > 0 && (
+              {(selectedAppointment.agenda?.length ?? 0) > 0 && (
                 <div>
                   <h4 className="font-medium mb-2">Agenda</h4>
                   <ul className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md space-y-1">
@@ -667,7 +674,8 @@ const cancelAppointment = async (appointmentId: string) => {
                 </div>
               )}
             </div>
-          )}
+            )
+          })()}
         </DialogContent>
       </Dialog>
 

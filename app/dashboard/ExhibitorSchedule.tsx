@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { MyAppointments } from "./my-appointments" // import your component
+import { apiFetch } from "@/lib/api"
 
 interface AppointmentEvent {
   id: string
@@ -22,14 +23,13 @@ export function ExhibitorSchedule({ userId }: ExhibitorScheduleProps) {
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null) // selected appointment
 
   useEffect(() => {
-    fetch(`/api/users/${userId}/appointments`)
-      .then((res) => res.json())
+    apiFetch<{ appointments?: any[] }>(`/api/appointments?requesterId=${userId}`, { auth: true })
       .then((data) => {
         const formatted = (data.appointments || []).map((e: any) => ({
           id: e.id,
-          title: e.title || `Meeting with ${e.exhibitorName}`,
+          title: e.eventTitle || e.eventName || `Meeting with ${e.exhibitorName}`,
           date: e.scheduledAt || e.createdAt,
-          status: e.status.toLowerCase(),
+          status: (e.status || "").toLowerCase(),
         }))
         setEvents(formatted)
       })

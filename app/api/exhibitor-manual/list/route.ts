@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"
 
 export async function GET(request: Request) {
   try {
@@ -10,35 +11,28 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Event ID is required" }, { status: 400 })
     }
 
-    // Get all manuals for the event
-    const manuals = await prisma.exhibitorManual.findMany({
-      where: {
-        eventId,
-        isActive: true,
-      },
-      include: {
-        uploadedBy: {
-          select: {
-            id: true,
-            firstName: true,
-            email: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    })
-
-    return NextResponse.json({
-      success: true,
-      data: manuals,
-    })
+    const res = await fetch(`${API_BASE}/api/exhibitor-manuals?eventId=${encodeURIComponent(eventId)}`)
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      return NextResponse.json({ error: err.error ?? "Failed to fetch manuals" }, { status: res.status })
+    }
+    const json = await res.json()
+    const list = json.data ?? []
+    const mapped = list.map((doc: any) => ({
+      ...doc,
+      uploadedBy: doc.uploadedBy
+        ? {
+            ...doc.uploadedBy,
+            name: [doc.uploadedBy.firstName, doc.uploadedBy.lastName].filter(Boolean).join(" ") || doc.uploadedBy.email,
+          }
+        : doc.uploadedBy,
+    }))
+    return NextResponse.json({ success: true, data: mapped })
   } catch (error) {
-    console.error("[v0] List error:", error)
+    console.error("Exhibitor manual list error:", error)
     return NextResponse.json(
       { error: "Failed to fetch manuals", details: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 },
+      { status: 500 }
     )
   }
 }

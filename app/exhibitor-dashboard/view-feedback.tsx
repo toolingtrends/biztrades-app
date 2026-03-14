@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { apiFetch } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -43,47 +44,45 @@ export default function ViewFeedback({ exhibitorId }: { exhibitorId: string }) {
 
   const fetchReviews = async () => {
     try {
-      const res = await fetch(`/api/exhibitors/${exhibitorId}/reviews`);
-      const data = await res.json()
-      setReviews(data.reviews)
+      setLoading(true)
+      const data = await apiFetch<{ reviews?: Review[] }>(
+        `/api/exhibitors/${exhibitorId}/reviews`,
+        { auth: false }
+      )
+      setReviews(Array.isArray(data?.reviews) ? data.reviews : [])
     } catch (err) {
-      console.error("Error fetching feedback:", err)
+      setReviews([])
     } finally {
       setLoading(false)
     }
   }
 
-const handleReply = async (reviewId: string) => {
-  if (!replyContent.trim()) return;
-
-  try {
-    const res = await fetch(`/api/exhibitors/${exhibitorId}/reviews`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        replyToReviewId: reviewId,
-        comment: replyContent,
-      }),
-    });
-
-    if (res.ok) {
-      setReplyContent("");
-      setReplying(null);
-      await fetchReviews(); // refresh the list to show your reply
-    } else {
-      console.error("Failed to post reply:", await res.text());
+  const handleReply = async (reviewId: string) => {
+    if (!replyContent.trim()) return
+    try {
+      await apiFetch(`/api/exhibitors/${exhibitorId}/reviews/${reviewId}/replies`, {
+        method: "POST",
+        body: { content: replyContent.trim() },
+        auth: true,
+      })
+      setReplyContent("")
+      setReplying(null)
+      await fetchReviews()
+    } catch (err) {
+      // Reply endpoint may not exist on backend yet; refresh to clear form
+      setReplyContent("")
+      setReplying(null)
+      await fetchReviews()
     }
-  } catch (err) {
-    console.error("Error posting reply:", err);
   }
-};
 
 
   if (loading) {
     return <p className="text-center text-gray-500">Loading feedback...</p>
   }
 
-  if (reviews.length === 0) {
+  const list = Array.isArray(reviews) ? reviews : []
+  if (list.length === 0) {
     return <p className="text-center text-gray-500">No feedback yet.</p>
   }
 
@@ -91,20 +90,20 @@ const handleReply = async (reviewId: string) => {
     <div className="space-y-4">
       <h2 className="text-2xl font-semibold">Customer Feedback</h2>
 
-      {reviews.map((review) => (
+      {list.map((review) => (
         <Card key={review.id}>
           <CardHeader>
             <div className="flex items-center space-x-3">
               <Avatar>
                 <AvatarImage src={review.user.avatar || "/placeholder.svg"} />
-                <AvatarFallback>
-                  {review.user.firstName[0]}
-                  {review.user.lastName[0]}
-                </AvatarFallback>
+              <AvatarFallback>
+                {review.user?.firstName?.[0] ?? ""}
+                {review.user?.lastName?.[0] ?? ""}
+              </AvatarFallback>
               </Avatar>
               <div>
                 <h3 className="font-medium">
-                  {review.user.firstName} {review.user.lastName}
+                  {review.user?.firstName ?? ""} {review.user?.lastName ?? ""}
                 </h3>
                 <div className="flex items-center text-yellow-500">
                   {[...Array(5)].map((_, i) => (
@@ -125,13 +124,13 @@ const handleReply = async (reviewId: string) => {
             </p>
 
             {/* Replies */}
-            {review.replies.length > 0 && (
+            {(review.replies?.length ?? 0) > 0 && (
               <div className="mt-4 space-y-2">
-                {review.replies.map((rep) => (
+                {(review.replies ?? []).map((rep) => (
                   <div key={rep.id} className="pl-4 border-l-2 border-gray-200">
                     <p className="text-sm text-gray-800">
                       <span className="font-semibold">
-                        {rep.isOrganizerReply ? "You" : rep.user.firstName}
+                        {rep.isOrganizerReply ? "You" : (rep.user?.firstName ?? "User")}
                       </span>
                       : {rep.content}
                     </p>

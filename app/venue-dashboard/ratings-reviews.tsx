@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { apiFetch } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -65,12 +66,14 @@ export default function VenueFeedbackManagement({ venueId }: { venueId: string }
   const fetchReviews = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/venues/${venueId}/reviews?includeReplies=true`)
-      if (!response.ok) throw new Error("Failed to fetch reviews")
-      const data = await response.json()
-      setReviews(data.reviews || [])
-      setFilteredReviews(data.reviews || [])
-      if (data.venue) {
+      const data = await apiFetch<{ reviews?: Review[]; venue?: { id: string; businessName: string } }>(
+        `/api/venues/${venueId}/reviews?includeReplies=true`,
+        { auth: false }
+      )
+      const list = Array.isArray(data?.reviews) ? data.reviews : []
+      setReviews(list)
+      setFilteredReviews(list)
+      if (data?.venue) {
         setVenue(data.venue)
       }
     } catch (error) {
@@ -80,6 +83,8 @@ export default function VenueFeedbackManagement({ venueId }: { venueId: string }
         description: "Failed to load reviews",
         variant: "destructive",
       })
+      setReviews([])
+      setFilteredReviews([])
     } finally {
       setLoading(false)
     }
@@ -176,19 +181,17 @@ export default function VenueFeedbackManagement({ venueId }: { venueId: string }
     }
 
     try {
-      const response = await fetch(`/api/reviews/${reviewId}/replies`, {
+      const newReply = await apiFetch<{
+        id: string
+        content: string
+        isOrganizerReply: boolean
+        createdAt: string
+        user: { id: string; firstName: string; lastName: string; avatar: string | null }
+      }>(`/api/venues/${venueId}/reviews/${reviewId}/replies`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          content: replyContent,
-        }),
+        body: { content: replyContent.trim() },
+        auth: true,
       })
-
-      if (!response.ok) throw new Error("Failed to send reply")
-
-      const newReply = await response.json()
 
       setReviews((prevReviews) =>
         prevReviews.map((review) =>
@@ -220,18 +223,17 @@ export default function VenueFeedbackManagement({ venueId }: { venueId: string }
 
   const handleDeleteReply = async (reviewId: string, replyId: string) => {
     try {
-      const response = await fetch(`/api/reviews/${reviewId}/replies/${replyId}`, {
+      await apiFetch(`/api/venues/${venueId}/reviews/${reviewId}/replies/${replyId}`, {
         method: "DELETE",
+        auth: true,
       })
-
-      if (!response.ok) throw new Error("Failed to delete reply")
 
       setReviews((prevReviews) =>
         prevReviews.map((review) =>
           review.id === reviewId
             ? {
                 ...review,
-                replies: review.replies.filter((reply) => reply.id !== replyId),
+                replies: (review.replies || []).filter((reply) => reply.id !== replyId),
               }
             : review,
         ),

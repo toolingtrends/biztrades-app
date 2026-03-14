@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Search, Users, UserPlus, UserCheck, UserX } from "lucide-react"
+import { apiFetch } from "@/lib/api"
 
 interface Connection {
   id: string
@@ -43,19 +44,8 @@ export function ConnectionsSection({ userId }: ConnectionsSectionProps) {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(`/api/users/${userId}/connections`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch connections")
-      }
-
-      const data = await response.json()
-      setConnections(data.connections)
+      const data = await apiFetch<{ connections?: any[]; data?: any[] }>(`/api/users/${userId}/connections`, { auth: true })
+      setConnections(data.connections ?? data.data ?? [])
     } catch (err) {
       console.error("Error fetching connections:", err)
       setError(err instanceof Error ? err.message : "An error occurred")
@@ -135,18 +125,16 @@ export function ConnectionsSection({ userId }: ConnectionsSectionProps) {
     
     setSearchLoading(true)
     try {
-      const response = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`)
-      if (response.ok) {
-        const data = await response.json()
-        // Filter out users who are already connected or have pending requests
-        const filteredResults = data.users.filter((user: any) => 
+      const data = await apiFetch<{ users?: any[]; data?: any[] }>(`/api/users/search?q=${encodeURIComponent(query)}`, { auth: true })
+      const list = data.users ?? data.data ?? []
+      // Filter out users who are already connected or have pending requests
+      const filteredResults = list.filter((user: any) => 
           !connections.some(conn => 
             (conn.firstName === user.firstName && conn.lastName === user.lastName) ||
             conn.id === user.id
           )
         )
-        setSearchResults(filteredResults)
-      }
+      setSearchResults(filteredResults)
     } catch (error) {
       console.error("Error searching users:", error)
     } finally {

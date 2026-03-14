@@ -168,17 +168,14 @@ export function ProfileSection({ organizerId, userData, onUpdate }: ProfileSecti
       console.log("[v0] Avatar uploaded successfully:", avatarUrl)
 
       console.log("[v0] Updating user profile with new avatar...")
-      const updateResponse = await fetch(`/api/users/${localUserData.id}`, {
+      const updatedUser = await apiFetch<{ user?: any; data?: any }>(`/api/users/${localUserData.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ avatar: avatarUrl }),
-      })
-
-      if (!updateResponse.ok) {
+        body: { avatar: avatarUrl },
+        auth: true,
+      }).then((r) => r.user ?? r.data)
+      if (!updatedUser) {
         throw new Error("Failed to update avatar")
       }
-
-      const { user: updatedUser } = await updateResponse.json()
       console.log("[v0] Avatar updated successfully in database")
 
       setLocalUserData((prev) => ({ ...prev, avatar: avatarUrl }))
@@ -256,18 +253,15 @@ export function ProfileSection({ organizerId, userData, onUpdate }: ProfileSecti
     setSaveError(null)
 
     try {
-      const response = await fetch(`/api/users/${localUserData.id}`, {
+      const response = await apiFetch<{ user?: any; data?: any }>(`/api/users/${localUserData.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: formData,
+        auth: true,
       })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to update profile")
+      const updatedUser = response?.user ?? response?.data
+      if (!updatedUser) {
+        throw new Error("Failed to update profile")
       }
-
-      const { user: updatedUser } = await response.json()
       setLocalUserData((prev) => ({ ...prev, ...updatedUser }))
       setSelectedInterests(updatedUser.interests || [])
       onUpdate(updatedUser)
@@ -321,11 +315,9 @@ export function ProfileSection({ organizerId, userData, onUpdate }: ProfileSecti
 
   const fetchConnectionsCount = useCallback(async () => {
     try {
-      const response = await fetch(`/api/users/${userData.id}/connections`)
-      if (response.ok) {
-        const data = await response.json()
-        setConnectionsCount(data.connections?.length || 0)
-      }
+      const data = await apiFetch<{ connections?: any[]; data?: any[] }>(`/api/users/${userData.id}/connections`, { auth: true })
+      const list = data.connections ?? data.data ?? []
+      setConnectionsCount(Array.isArray(list) ? list.length : 0)
     } catch (error) {
       console.error("Error fetching connections:", error)
     }
@@ -333,11 +325,9 @@ export function ProfileSection({ organizerId, userData, onUpdate }: ProfileSecti
 
   const fetchInterestedEventsCount = useCallback(async () => {
     try {
-      const response = await fetch(`/api/users/${userData.id}/interested-events`)
-      if (response.ok) {
-        const data = await response.json()
-        setInterestedEventsCount(data.total || 0)
-      }
+      const data = await apiFetch<{ events?: any[]; data?: any[] }>(`/api/users/${userData.id}/interested-events`, { auth: true })
+      const list = data.events ?? data.data ?? []
+      setInterestedEventsCount(Array.isArray(list) ? list.length : 0)
     } catch (error) {
       console.error("Error fetching interested events:", error)
     }

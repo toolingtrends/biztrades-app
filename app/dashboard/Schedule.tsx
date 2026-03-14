@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { apiFetch } from "@/lib/api"
 
 interface Event {
   id: string
@@ -19,20 +20,19 @@ export default function Schedule({ userId }: ScheduleProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date())
 
   useEffect(() => {
-  fetch(`/api/users/${userId}/interested-events`)
-    .then((res) => res.json())
-    .then((data) => {
-      if (data.events) {
-        const mappedEvents = data.events.map((e: any) => ({
+    apiFetch<{ events?: any[]; data?: any[] }>(`/api/users/${userId}/interested-events`, { auth: true })
+      .then((data) => {
+        const list = data.events ?? data.data ?? []
+        const mappedEvents = list.map((e: any) => ({
           id: e.id,
           title: e.title,
-          date: e.startDate, // use startDate for calendar
-          category: "work" as const, // default or map from e.type
+          date: e.startDate,
+          category: "work" as const,
         }))
         setEvents(mappedEvents)
-      }
-    })
-}, [userId])
+      })
+      .catch(console.error)
+  }, [userId])
 
 
   const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)

@@ -1,42 +1,33 @@
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"
 
 export async function PATCH(request: Request) {
   try {
-    const { id, description, version, isActive } = await request.json()
+    const body = await request.json()
+    const { id, description, version } = body
 
     if (!id) {
       return NextResponse.json({ error: "Manual ID is required" }, { status: 400 })
     }
 
-    // Update the manual in database
-    const updatedManual = await prisma.exhibitorManual.update({
-      where: { id },
-      data: {
-        ...(description !== undefined && { description }),
-        ...(version !== undefined && { version }),
-        ...(isActive !== undefined && { isActive }),
-      },
-      include: {
-        uploadedBy: {
-          select: {
-            id: true,
-            firstName: true,
-            email: true,
-          },
-        },
-      },
+    const res = await fetch(`${API_BASE}/api/exhibitor-manuals/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description, version }),
     })
 
-    return NextResponse.json({
-      success: true,
-      data: updatedManual,
-    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      return NextResponse.json({ error: err.error ?? "Update failed" }, { status: res.status })
+    }
+    const json = await res.json()
+    return NextResponse.json({ success: true, data: json.data })
   } catch (error) {
-    console.error("[v0] Update error:", error)
+    console.error("Exhibitor manual update error:", error)
     return NextResponse.json(
       { error: "Update failed", details: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 },
+      { status: 500 }
     )
   }
 }

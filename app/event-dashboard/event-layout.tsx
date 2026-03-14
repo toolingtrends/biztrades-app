@@ -40,7 +40,7 @@ import AddSpeaker from "./AddSpeaker"
 import SpeakerSessionsTable from "./SpeakerSessionsTable"
 import { CreateConferenceAgenda } from "./CreateConferenceAgenda"
 import { ConferenceList } from "./ConferenceAgenda"
-import { useSession } from "next-auth/react"
+import { getCurrentUserId } from "@/lib/api"
 import AnalyticsDashboard from "./analytics"
 // import Analytics from "./analytics"
 // ...create/import other components as needed
@@ -69,8 +69,7 @@ export default function EventSidebar({ eventId }: EventLayoutProps) {
   const [expandedGroups, setExpandedGroups] = useState<string[]>(["main", "lead-management"])
   const [activeSection, setActiveSection] = useState("dashboard")
   const [params, setParams] = useState<{ id: string } | null>(null)
-  const { data: session } = useSession()
-  const userId = session?.user?.id
+  const userId = getCurrentUserId()
 
   const [refreshKey, setRefreshKey] = useState(0)
   const [activeTab, setActiveTab] = useState("list")
@@ -183,7 +182,7 @@ export default function EventSidebar({ eventId }: EventLayoutProps) {
       case "add-exhibitores":
         return <AddExhibitor eventId={eventId} />
       case "exhibitor-manual":
-        return <ExhibitorManual userId={userId!} eventId={eventId} />
+        return <ExhibitorManual userId={userId ?? ""} eventId={eventId} />
       case "analytics":
         return <AnalyticsDashboard exhibitorId={eventId} />
       case "add-speaker":

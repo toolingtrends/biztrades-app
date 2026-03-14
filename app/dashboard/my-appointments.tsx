@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { apiFetch } from "@/lib/api"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -52,10 +53,8 @@ export function MyAppointments({ userId }: MyAppointmentsProps) {
     try {
       setLoading(true)
       setError(null)
-      const response = await fetch(`/api/users/${userId}/appointments`)
-      if (!response.ok) throw new Error("Failed to fetch appointments")
-      const data = await response.json()
-      setAppointments(data.appointments || [])
+      const data = await apiFetch<{ appointments?: Appointment[] }>(`/api/appointments?requesterId=${userId}`, { auth: true })
+      setAppointments(data.appointments ?? [])
     } catch (err) {
       setError("Failed to load appointments")
       console.error("Error fetching appointments:", err)
@@ -66,12 +65,11 @@ export function MyAppointments({ userId }: MyAppointmentsProps) {
 
   const cancelAppointment = async (appointmentId: string) => {
     try {
-      const response = await fetch(`/api/appointments/${appointmentId}`, {
+      await apiFetch("/api/appointments", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "cancelled" }),
+        body: { appointmentId, status: "CANCELLED" },
+        auth: true,
       })
-      if (!response.ok) throw new Error("Failed to cancel appointment")
 
       toast({
         title: "Appointment Cancelled",
