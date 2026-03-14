@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
-import { useSession } from "next-auth/react"
+import { isAuthenticated } from "@/lib/api"
 import { Star, Loader2 } from "lucide-react"
 
 interface ReviewReply {
@@ -55,12 +55,11 @@ export function AddOrganizerReview({ organizerId, onReviewAdded }: AddOrganizerR
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hoveredRating, setHoveredRating] = useState(0)
   const { toast } = useToast()
-  const { data: session } = useSession()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!session?.user) {
+    if (!isAuthenticated()) {
       toast({
         title: "Authentication Required",
         description: "Please log in to submit a review.",

@@ -7,8 +7,8 @@ import { Star, Calendar, Reply, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { useState } from "react"
-import { useSession } from "next-auth/react"
 import { useToast } from "@/hooks/use-toast"
+import { getCurrentUserId, isAuthenticated } from "@/lib/api"
 
 interface ReviewReply {
   id: string
@@ -80,7 +80,7 @@ export function ReviewCard({ review, organizerId, onReplyAdded, hideReplyButton 
   }
 
   const handleSubmitReply = async () => {
-    if (!session?.user) {
+    if (!isAuthenticated() || !userId) {
       toast({
         title: "Authentication Required",
         description: "Please log in to submit a reply.",
@@ -204,7 +204,7 @@ export function ReviewCard({ review, organizerId, onReplyAdded, hideReplyButton 
             <p className="text-gray-600 leading-relaxed">{review.comment}</p>
 
             {/* Reply Button */}
-            {!hideReplyButton && (isOrganizer || session?.user) && (
+            {!hideReplyButton && (isOrganizer || userId) && (
               <div className="flex items-center justify-between pt-2">
                 <Button
                   variant="ghost"

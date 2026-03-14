@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import { isAuthenticated, getCurrentUserId } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,7 +25,7 @@ export default function ExhibitPage({ params }: ExhibitPageProps) {
   const [spaceType, setSpaceType] = useState("")
   const [area, setArea] = useState(1)
   const [additionalServices, setAdditionalServices] = useState<string[]>([])
-  const { data: session } = useSession()
+  const userId = getCurrentUserId()
   const router = useRouter()
   const { toast } = useToast()
 
@@ -56,7 +56,7 @@ export default function ExhibitPage({ params }: ExhibitPageProps) {
   }, [params, toast])
 
   const handleBookBooth = async () => {
-    if (!session) {
+    if (!isAuthenticated() || !userId) {
       toast({
         title: "Authentication Required",
         description: "Please log in to book an exhibition booth",
@@ -77,7 +77,7 @@ export default function ExhibitPage({ params }: ExhibitPageProps) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          userId: session.user?.id,
+          userId,
           spaceType,
           area,
           additionalServices,

@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import EventPageContent from "../EventPageContent"
@@ -20,7 +19,6 @@ export default function EventPageClient({ params, initialEvent, initialError }: 
   const [loading, setLoading] = useState(!initialEvent && !initialError)
   const [error, setError] = useState<string | null>(initialError || null)
 
-  const { data: session } = useSession()
   const router = useRouter()
   const { toast } = useToast()
 
@@ -101,7 +99,7 @@ export default function EventPageClient({ params, initialEvent, initialError }: 
 
   return <EventPageContent 
     event={event} 
-    session={session}
+    session={null}
     router={router}
     toast={toast}
   />

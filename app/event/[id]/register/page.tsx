@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import { isAuthenticated, getCurrentUserId } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -24,7 +24,7 @@ export default function RegisterPage({ params }: RegisterPageProps) {
   const [registering, setRegistering] = useState(false)
   const [ticketType, setTicketType] = useState("GENERAL")
   const [quantity, setQuantity] = useState(1)
-  const { data: session } = useSession()
+  const userId = getCurrentUserId()
   const router = useRouter()
   const { toast } = useToast()
 
@@ -55,7 +55,7 @@ export default function RegisterPage({ params }: RegisterPageProps) {
   }, [params, toast])
 
   const handleRegister = async () => {
-    if (!session) {
+    if (!isAuthenticated() || !userId) {
       toast({
         title: "Authentication Required",
         description: "Please log in to register for this event",
@@ -76,7 +76,7 @@ export default function RegisterPage({ params }: RegisterPageProps) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          userId: session.user?.id,
+          userId,
           ticketType,
           quantity,
         }),

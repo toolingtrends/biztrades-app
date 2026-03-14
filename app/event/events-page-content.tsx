@@ -28,7 +28,7 @@ import Link from "next/link"
 import AdCard from "@/components/add-card"
 import { useToast } from "@/hooks/use-toast"
 import { ShareButton } from "@/components/share-button"
-import { useSession } from "next-auth/react"
+import { isAuthenticated, getCurrentUserId } from "@/lib/api"
 import { BookmarkButton } from "@/components/bookmark-button"
 
 // Use Next.js API (same-origin) to avoid CORS; API route proxies to backend when needed
@@ -248,7 +248,8 @@ export default function EventsPageContent() {
 
   const { toast } = useToast()
   const router = useRouter()
-  const { data: session } = useSession()
+  const userId = getCurrentUserId()
+  const isLoggedIn = isAuthenticated()
 
   const DEFAULT_EVENT_IMAGE = "/city/c4.jpg"
 
@@ -271,7 +272,7 @@ export default function EventsPageContent() {
     }
 
     // Block if not logged in
-    if (!session) {
+    if (!isLoggedIn) {
       toast({
         title: "Login required",
         description: "Please log in to view more events.",
@@ -419,7 +420,6 @@ export default function EventsPageContent() {
   }, [categoryFromUrl, searchParams])
 
   const handleVisitClick = async (eventId: string, eventTitle: string) => {
-    console.log("[v0] handleVisitClick called with:", { eventId, eventTitle, hasSession: !!session, session })
     if (!eventId) {
       toast({
         title: "Invalid event",
@@ -431,7 +431,7 @@ export default function EventsPageContent() {
 
     incrementVisitorCount(eventId)
 
-    if (!session) {
+    if (!isLoggedIn || !userId) {
       try {
         alert(`Authentication Required\nPlease log in to visit "${eventTitle}".`)
       } catch {
@@ -442,16 +442,6 @@ export default function EventsPageContent() {
         })
       }
       router.push("/login")
-      return
-    }
-
-    const userId = (session as any)?.user?.id
-    if (!userId) {
-      toast({
-        title: "Session issue",
-        description: "Your session is missing an ID. Please log out and log back in.",
-        variant: "destructive",
-      })
       return
     }
 

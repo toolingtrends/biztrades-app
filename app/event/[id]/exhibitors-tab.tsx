@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { useSession } from "next-auth/react"
+import { getCurrentUserId } from "@/lib/api"
 import Link from "next/link"
 import ScheduleMeetingButton from "@/components/ScheduleMeetingButton"
 import { apiFetch } from "@/lib/api"
@@ -39,7 +39,7 @@ export default function ExhibitorsTab({ eventId }: ExhibitorsTabProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
-  const { data: session } = useSession()
+  const userId = getCurrentUserId()
 
   useEffect(() => {
     const fetchExhibitors = async () => {

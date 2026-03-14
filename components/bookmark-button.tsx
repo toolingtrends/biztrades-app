@@ -2,9 +2,8 @@
 
 import { useState, useEffect, ReactNode } from "react"
 import { Bookmark } from "lucide-react"
-import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { apiFetch } from "@/lib/api"
+import { apiFetch, getCurrentUserId, isAuthenticated } from "@/lib/api"
 
 interface BookmarkButtonProps {
   eventId: string
@@ -21,14 +20,14 @@ export function BookmarkButton({
 }: BookmarkButtonProps) {
   const [isSaved, setIsSaved] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const { data: session } = useSession()
   const router = useRouter()
+  const userId = getCurrentUserId()
 
   useEffect(() => {
-    if (session?.user?.id) {
+    if (userId) {
       checkSavedStatus()
     }
-  }, [eventId, session])
+  }, [eventId, userId])
 
   const checkSavedStatus = async () => {
     try {
@@ -48,7 +47,7 @@ export function BookmarkButton({
       onClick(e)
     }
 
-    if (!session?.user?.id) {
+    if (!isAuthenticated() || !userId) {
       alert("Please log in to Follow this event")
       router.push("/login")
       return
