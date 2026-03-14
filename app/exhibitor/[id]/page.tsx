@@ -213,14 +213,14 @@ function ReviewCard({ review, exhibitorId, onReplyAdded }: {
               />
             ) : (
               <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center">
-                <span className="text-sm font-medium">
-                  {review.user.firstName?.[0]}{review.user.lastName?.[0]}
-                </span>
+                  <span className="text-sm font-medium">
+                        {([review.user?.firstName?.[0], review.user?.lastName?.[0]].filter(Boolean).join("") || "G").toUpperCase()}
+                      </span>
               </div>
             )}
             <div>
               <h4 className="font-medium">
-                {review.user.firstName} {review.user.lastName}
+                {[review.user?.firstName, review.user?.lastName].filter(Boolean).join(" ").trim() || "Guest"}
               </h4>
               <p className="text-sm text-gray-500">
                 {format(new Date(review.createdAt), 'MMM dd, yyyy')}
@@ -265,7 +265,7 @@ function ReviewCard({ review, exhibitorId, onReplyAdded }: {
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
                       <span className="text-xs font-medium">
-                        {reply.user.firstName?.[0]}{reply.user.lastName?.[0]}
+                        {([reply.user?.firstName?.[0], reply.user?.lastName?.[0]].filter(Boolean).join("") || "G").toUpperCase()}
                       </span>
                     </div>
                   )}
@@ -273,7 +273,7 @@ function ReviewCard({ review, exhibitorId, onReplyAdded }: {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-medium text-sm">
-                      {reply.user.firstName} {reply.user.lastName}
+                      {[reply.user?.firstName, reply.user?.lastName].filter(Boolean).join(" ").trim() || "Guest"}
                     </span>
                     {reply.isOrganizerReply && (
                       <Badge variant="secondary" className="text-xs">
