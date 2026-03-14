@@ -58,14 +58,6 @@ export default function Navbar() {
     setActiveSection("settings");
   };
 
-  if (status === "loading") {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p>Loading...</p>
-      </div>
-    );
-  }
-
   return (
     <nav className="bg-white shadow-sm">
       <div className="max-w-1xl mx-auto px-4 sm:px-6 lg:px-8 py-2">

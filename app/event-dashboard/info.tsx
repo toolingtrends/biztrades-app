@@ -110,7 +110,7 @@ export default function EventPage({ params }: EventPageProps) {
     if (event?.id && userId) {
       checkIfSaved()
     }
-  }, [event?.id, session?.user?.id])
+  }, [event?.id, userId])
 
   const checkIfSaved = async () => {
     try {
