@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AddOrganizerReview } from "../../components/AddOrganizerReview"
 import { ReviewCard } from "../../components/ReviewCard"
 import { useToast } from "@/hooks/use-toast"
+import { apiFetch } from "@/lib/api"
 import { Loader2, MessageSquare } from "lucide-react"
 
 interface ReviewReply {
@@ -62,19 +63,26 @@ export function FeedbackSection({ organizerId }: FeedbackSectionProps) {
   const fetchReviews = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/organizers/${organizerId}/reviews`)
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch reviews")
-      }
-
-      const data = await response.json()
-      setReviews(data.reviews || [])
-      setStats(data.stats || {
+      const data = await apiFetch<{ reviews?: any[]; data?: { reviews?: any[] }; organizer?: { averageRating?: number; totalReviews?: number }; stats?: any }>(
+        `/api/organizers/${organizerId}/reviews`,
+        { auth: false }
+      )
+      const list = data.reviews ?? data.data?.reviews ?? []
+      setReviews(Array.isArray(list) ? list : [])
+      const org = data.organizer
+      setStats(data.stats ?? (org ? {
+        averageRating: org.averageRating ?? 0,
+        totalReviews: org.totalReviews ?? list.length,
+        ratingDistribution: (Array.isArray(list) ? list : []).reduce((acc, r) => {
+          const star = r.rating ?? 0
+          acc[star] = (acc[star] ?? 0) + 1
+          return acc
+        }, { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } as Record<number, number>)
+      } : {
         averageRating: 0,
         totalReviews: 0,
         ratingDistribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
-      })
+      }))
     } catch (error) {
       console.error("Error fetching reviews:", error)
       toast({

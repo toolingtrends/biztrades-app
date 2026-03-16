@@ -315,13 +315,14 @@ export function ProfileSection({ organizerId, userData, onUpdate }: ProfileSecti
 
   const fetchConnectionsCount = useCallback(async () => {
     try {
-      const data = await apiFetch<{ connections?: any[]; data?: any[] }>(`/api/users/${userData.id}/connections`, { auth: true })
+      const data = await apiFetch<{ connections?: any[]; data?: any[] }>("/api/connections", { auth: true })
       const list = data.connections ?? data.data ?? []
-      setConnectionsCount(Array.isArray(list) ? list.length : 0)
+      const connected = Array.isArray(list) ? list.filter((c: any) => c.status === "connected") : []
+      setConnectionsCount(connected.length)
     } catch (error) {
       console.error("Error fetching connections:", error)
     }
-  }, [userData.id])
+  }, [userData?.id])
 
   const fetchInterestedEventsCount = useCallback(async () => {
     try {

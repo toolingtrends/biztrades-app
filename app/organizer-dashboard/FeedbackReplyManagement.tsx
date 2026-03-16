@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Star, Filter, Calendar, User, MessageSquare, Reply, Send, ChevronDown, ChevronUp } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { apiFetch } from "@/lib/api"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   DropdownMenu,
@@ -93,12 +94,13 @@ export default function FeedbackReplyManagement({ organizerId }: { organizerId: 
   const fetchReviews = async () => {
     try {
       setLoading(true)
-      // Fetch reviews with replies for all organizer events
-      const response = await fetch(`/api/organizers/${organizerId}/reviews?includeReplies=true`)
-      if (!response.ok) throw new Error("Failed to fetch reviews")
-      const data = await response.json()
-      setReviews(data.reviews || [])
-      setFilteredReviews(data.reviews || [])
+      const data = await apiFetch<{ reviews?: any[]; data?: { reviews?: any[] } }>(
+        `/api/organizers/${organizerId}/reviews?includeReplies=true`,
+        { auth: false }
+      )
+      const list = data.reviews ?? data.data?.reviews ?? []
+      setReviews(Array.isArray(list) ? list : [])
+      setFilteredReviews(Array.isArray(list) ? list : [])
     } catch (error) {
       console.error("Error fetching reviews:", error)
       toast({
@@ -116,7 +118,7 @@ export default function FeedbackReplyManagement({ organizerId }: { organizerId: 
 
     // Filter by event
     if (selectedEvent !== "all") {
-      filtered = filtered.filter(review => review.event.id === selectedEvent)
+      filtered = filtered.filter(review => review.event?.id === selectedEvent)
     }
 
     // Filter by rating
@@ -214,19 +216,14 @@ export default function FeedbackReplyManagement({ organizerId }: { organizerId: 
     }
 
     try {
-      const response = await fetch(`/api/reviews/${reviewId}/replies`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          content: replyContent,
-        }),
-      })
-
-      if (!response.ok) throw new Error("Failed to send reply")
-
-      const newReply = await response.json()
+      const newReply = await apiFetch<{ id: string; content: string; createdAt: string; isOrganizerReply: boolean; user: any }>(
+        `/api/reviews/${reviewId}/replies`,
+        {
+          method: "POST",
+          body: { content: replyContent.trim() },
+          auth: true,
+        }
+      )
 
       // Update the review with the new reply locally
       setReviews(prevReviews =>
@@ -259,11 +256,10 @@ export default function FeedbackReplyManagement({ organizerId }: { organizerId: 
 
   const handleDeleteReply = async (reviewId: string, replyId: string) => {
     try {
-      const response = await fetch(`/api/reviews/${reviewId}/replies/${replyId}`, {
+      await apiFetch(`/api/reviews/${reviewId}/replies/${replyId}`, {
         method: "DELETE",
+        auth: true,
       })
-
-      if (!response.ok) throw new Error("Failed to delete reply")
 
       // Remove the reply from the review locally
       setReviews(prevReviews =>

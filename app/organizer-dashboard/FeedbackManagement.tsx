@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Star, Filter, Calendar, User, MessageSquare } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { apiFetch } from "@/lib/api"
 import { Skeleton } from "@/components/ui/skeleton"
 
 interface Review {
@@ -68,12 +69,13 @@ export default function FeedbackManagement({ organizerId }: { organizerId: strin
   const fetchReviews = async () => {
     try {
       setLoading(true)
-      // Fetch reviews for all organizer events
-      const response = await fetch(`/api/organizers/${organizerId}/reviews`)
-      if (!response.ok) throw new Error("Failed to fetch reviews")
-      const data = await response.json()
-      setReviews(data.reviews || [])
-      setFilteredReviews(data.reviews || [])
+      const data = await apiFetch<{ reviews?: any[]; data?: { reviews?: any[] } }>(
+        `/api/organizers/${organizerId}/reviews?includeReplies=true`,
+        { auth: false }
+      )
+      const list = data.reviews ?? data.data?.reviews ?? []
+      setReviews(Array.isArray(list) ? list : [])
+      setFilteredReviews(Array.isArray(list) ? list : [])
     } catch (error) {
       console.error("Error fetching reviews:", error)
       toast({
@@ -91,7 +93,7 @@ export default function FeedbackManagement({ organizerId }: { organizerId: strin
 
     // Filter by event
     if (selectedEvent !== "all") {
-      filtered = filtered.filter(review => review.event.id === selectedEvent)
+      filtered = filtered.filter(review => review.event?.id === selectedEvent)
     }
 
     // Filter by rating

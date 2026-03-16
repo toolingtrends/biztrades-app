@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { useState } from "react"
 import { useToast } from "@/hooks/use-toast"
-import { getCurrentUserId, isAuthenticated } from "@/lib/api"
+import { getCurrentUserId, isAuthenticated, apiFetch } from "@/lib/api"
 
 interface ReviewReply {
   id: string
@@ -101,22 +101,11 @@ export function ReviewCard({ review, organizerId, onReplyAdded, hideReplyButton 
     try {
       setIsSubmitting(true)
 
-      const response = await fetch(`/api/organizers/${organizerId}/reviews/${review.id}/replies`, {
+      const replyData = await apiFetch<ReviewReply>(`/api/reviews/${review.id}/replies`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          content: replyContent.trim(),
-        }),
+        body: { content: replyContent.trim() },
+        auth: true,
       })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to submit reply")
-      }
-
-      const replyData = await response.json()
 
       if (onReplyAdded) {
         onReplyAdded(review.id, replyData)

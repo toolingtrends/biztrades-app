@@ -11,22 +11,23 @@ import { apiFetch } from "@/lib/api"
 
 interface Connection {
   id: string
-  firstName: string
-  lastName: string
+  firstName?: string
+  lastName?: string
   jobTitle?: string
   company?: string
   avatar?: string
   mutualConnections?: number
   status: 'connected' | 'pending' | 'request_received'
-  connectionId: string // Add this to match the backend response
+  connectionId?: string
 }
 
 interface ConnectionsSectionProps {
   userId: string
 }
 
-export function ConnectionsSection({ userId }: ConnectionsSectionProps) {
+export function ConnectionsSection({ userId: _userId }: ConnectionsSectionProps) {
   const [connections, setConnections] = useState<Connection[]>([])
+  const [connectionRequests, setConnectionRequests] = useState<Connection[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -35,17 +36,16 @@ export function ConnectionsSection({ userId }: ConnectionsSectionProps) {
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
 
-  useEffect(() => {
-    fetchConnections()
-  }, [userId])
-
   const fetchConnections = async () => {
     try {
       setLoading(true)
       setError(null)
-
-      const data = await apiFetch<{ connections?: any[]; data?: any[] }>(`/api/users/${userId}/connections`, { auth: true })
-      setConnections(data.connections ?? data.data ?? [])
+      const [listRes, requestsRes] = await Promise.all([
+        apiFetch<{ connections?: any[]; data?: any[] }>("/api/connections", { auth: true }),
+        apiFetch<{ connections?: any[]; data?: any[] }>("/api/connections/requests", { auth: true }),
+      ])
+      setConnections(listRes.connections ?? listRes.data ?? [])
+      setConnectionRequests(requestsRes.connections ?? requestsRes.data ?? [])
     } catch (err) {
       console.error("Error fetching connections:", err)
       setError(err instanceof Error ? err.message : "An error occurred")
@@ -54,61 +54,40 @@ export function ConnectionsSection({ userId }: ConnectionsSectionProps) {
     }
   }
 
- const handleConnectionAction = async (targetId: string, action: 'accept' | 'reject' | 'connect' | 'cancel') => {
+  useEffect(() => {
+    fetchConnections()
+  }, [])
+
+  const handleConnectionAction = async (targetId: string, action: 'accept' | 'reject' | 'connect' | 'cancel') => {
   try {
     if (action === 'connect') {
-      // For connect action, use the POST endpoint
-      const response = await fetch(`/api/users/${userId}/connections`, {
+      const data = await apiFetch<{ connection?: any }>("/api/connections/request", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ receiverId: targetId }),
+        auth: true,
+        body: { receiverId: targetId },
       })
-
-      if (!response.ok) {
-        throw new Error(`Failed to send connection request`)
+      if (data.connection) {
+        setConnections(prev => [...prev, { ...data.connection, connectionId: data.connection.connectionId ?? data.connection.id, status: "pending" as const }])
+        setSearchResults(prev => prev.filter(user => user.id !== targetId))
       }
-
-      const data = await response.json()
-      // Add the new pending connection to the list
-      setConnections(prev => [...prev, data.connection])
-      setSearchResults(prev => prev.filter(user => user.id !== targetId))
     } else {
-      // For other actions, find the connection by connectionId
-      const connection = connections.find(conn => 
+      const connection = [...connections, ...connectionRequests].find(conn =>
         conn.connectionId === targetId || conn.id === targetId
       )
-      
       if (!connection) {
         throw new Error("Connection not found")
       }
-
-      const connectionId = connection.connectionId
-      
-      const response = await fetch(`/api/users/${userId}/connections/${connectionId}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ action }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to ${action} connection`)
-      }
-
-      // Update the connection status locally
-      if (action === 'accept' || action === 'reject') {
-        // Remove from list when accepting or rejecting a request
-        setConnections(prev => prev.filter(conn => 
-          conn.connectionId !== connectionId && conn.id !== connectionId
-        ))
+      const connectionId = connection.connectionId ?? connection.id
+      if (action === 'accept') {
+        await apiFetch(`/api/connections/${connectionId}/accept`, { method: "POST", auth: true })
+        setConnectionRequests(prev => prev.filter(conn => conn.connectionId !== connectionId && conn.id !== connectionId))
+        fetchConnections()
+      } else if (action === 'reject') {
+        await apiFetch(`/api/connections/${connectionId}/reject`, { method: "POST", auth: true })
+        setConnectionRequests(prev => prev.filter(conn => conn.connectionId !== connectionId && conn.id !== connectionId))
       } else if (action === 'cancel') {
-        // Remove from list when canceling a request
-        setConnections(prev => prev.filter(conn => 
-          conn.connectionId !== connectionId && conn.id !== connectionId
-        ))
+        await apiFetch(`/api/connections/${connectionId}`, { method: "DELETE", auth: true })
+        setConnections(prev => prev.filter(conn => conn.connectionId !== connectionId && conn.id !== connectionId))
       }
     }
   } catch (err) {
@@ -142,20 +121,17 @@ export function ConnectionsSection({ userId }: ConnectionsSectionProps) {
     }
   }
 
-  const filteredConnections = connections.filter(
-  (connection) =>
-    (connection.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    connection.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    connection.company?.toLowerCase().includes(searchTerm.toLowerCase())) &&
-    (activeTab === 'connections' ? 
-      connection.status === 'connected' : 
-      connection.status === 'request_received')
-)
+  const pendingConnections = connections.filter(conn => conn.status === 'pending')
 
-// Get pending connections (outgoing requests)
-const pendingConnections = connections.filter(conn => 
-  conn.status === 'pending' && activeTab === 'connections'
-) 
+  const searchMatch = (c: Connection) =>
+    (c.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.company?.toLowerCase().includes(searchTerm.toLowerCase()))
+
+  const filteredConnections =
+    activeTab === 'connections'
+      ? connections.filter(c => c.status === 'connected' && searchMatch(c))
+      : connectionRequests.filter(searchMatch) 
 
   if (loading) {
     return (
@@ -271,7 +247,7 @@ const pendingConnections = connections.filter(conn =>
               className={`px-4 py-2 font-medium ${activeTab === 'requests' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500'}`}
               onClick={() => setActiveTab('requests')}
             >
-              Connection Requests ({connections.filter(c => c.status === 'request_received').length})
+              Connection Requests ({connectionRequests.length})
             </button>
           </div>
 
@@ -286,12 +262,11 @@ const pendingConnections = connections.filter(conn =>
                       <Avatar className="w-16 h-16 mx-auto mb-4">
                         <AvatarImage src={connection.avatar || "/placeholder.svg"} />
                         <AvatarFallback>
-                          {connection.firstName[0]}
-                          {connection.lastName[0]}
+                          {connection.firstName?.[0] ?? ""}{connection.lastName?.[0] ?? ""}
                         </AvatarFallback>
                       </Avatar>
                       <h3 className="font-semibold mb-1">
-                        {connection.firstName} {connection.lastName}
+                        {connection.firstName ?? ""} {connection.lastName ?? ""}
                       </h3>
                       {connection.jobTitle && <p className="text-sm text-gray-600 mb-1">{connection.jobTitle}</p>}
                       {connection.company && <p className="text-sm text-gray-500 mb-2">{connection.company}</p>}
@@ -322,12 +297,11 @@ const pendingConnections = connections.filter(conn =>
                     <Avatar className="w-16 h-16 mx-auto mb-4">
                       <AvatarImage src={connection.avatar || "/placeholder.svg"} />
                       <AvatarFallback>
-                        {connection.firstName[0]}
-                        {connection.lastName[0]}
+                        {connection.firstName?.[0] ?? ""}{connection.lastName?.[0] ?? ""}
                       </AvatarFallback>
                     </Avatar>
                     <h3 className="font-semibold mb-1">
-                      {connection.firstName} {connection.lastName}
+                      {connection.firstName ?? ""} {connection.lastName ?? ""}
                     </h3>
                     {connection.jobTitle && <p className="text-sm text-gray-600 mb-1">{connection.jobTitle}</p>}
                     {connection.company && <p className="text-sm text-gray-500 mb-2">{connection.company}</p>}
@@ -350,7 +324,7 @@ const pendingConnections = connections.filter(conn =>
                           <Button 
                             size="sm" 
                             className="flex-1"
-                            onClick={() => handleConnectionAction(connection.id, 'accept')}
+                            onClick={() => handleConnectionAction(connection.connectionId ?? connection.id, 'accept')}
                           >
                             <UserCheck className="w-4 h-4 mr-1" />
                             Accept
@@ -359,7 +333,7 @@ const pendingConnections = connections.filter(conn =>
                             size="sm" 
                             variant="outline" 
                             className="flex-1"
-                            onClick={() => handleConnectionAction(connection.id, 'reject')}
+                            onClick={() => handleConnectionAction(connection.connectionId ?? connection.id, 'reject')}
                           >
                             <UserX className="w-4 h-4 mr-1" />
                             Reject
