@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
+import { apiFetch } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -73,16 +74,19 @@ export function PresentationMaterials({ speakerId }: PresentationMaterialsProps)
   }, [speakerId])
 
   const fetchSessions = async () => {
+    if (!speakerId) return
     try {
       setLoading(true)
-      const response = await fetch(`/api/speakers/${speakerId}/sessions`)
-      if (!response.ok) throw new Error("Failed to fetch sessions")
-      const data = await response.json()
-
-      setSessions(data.sessions)
       setError(null)
+      const data = await apiFetch<{ success?: boolean; sessions?: SessionWithMaterials[] }>(
+        `/api/speakers/${speakerId}/sessions`,
+        { auth: true }
+      )
+      const list = Array.isArray(data?.sessions) ? data.sessions : []
+      setSessions(list)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load sessions")
+      setSessions([])
     } finally {
       setLoading(false)
     }
@@ -102,21 +106,11 @@ export function PresentationMaterials({ speakerId }: PresentationMaterialsProps)
         formData.append("sessionId", sessionId)
         formData.append("speakerId", speakerId)
 
-        console.log("[v0] Uploading file:", file.name, "for session:", sessionId, "speaker:", speakerId)
-
-        const response = await fetch("/api/materials", {
+        await apiFetch<{ material?: Material }>("/api/materials", {
           method: "POST",
           body: formData,
+          auth: true,
         })
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          console.error("[v0] Upload failed:", errorData)
-          throw new Error(errorData.error || "Upload failed")
-        }
-
-        const result = await response.json()
-        console.log("[v0] Upload successful:", result)
 
         setUploadProgress(((i + 1) / files.length) * 100)
       }
@@ -133,13 +127,11 @@ export function PresentationMaterials({ speakerId }: PresentationMaterialsProps)
 
   const handleToggleDownload = async (materialId: string, currentValue: boolean) => {
     try {
-      const response = await fetch(`/api/materials/${materialId}`, {
+      await apiFetch(`/api/materials/${materialId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ allowDownload: !currentValue }),
+        body: { allowDownload: !currentValue },
+        auth: true,
       })
-
-      if (!response.ok) throw new Error("Failed to update download permission")
 
       setSessions((prevSessions) =>
         prevSessions.map((session) => ({
@@ -156,13 +148,12 @@ export function PresentationMaterials({ speakerId }: PresentationMaterialsProps)
 
   const handleDownload = async (materialId: string, fileName: string) => {
     try {
-      const response = await fetch(`/api/materials/${materialId}/download`)
-      if (!response.ok) throw new Error("Download failed")
-
-      const data = await response.json()
-
-      // Open file in new tab or trigger download
-      window.open(data.fileUrl, "_blank")
+      const data = await apiFetch<{ fileUrl?: string }>(`/api/materials/${materialId}/download`, {
+        auth: true,
+      })
+      const url = data?.fileUrl
+      if (url) window.open(url, "_blank")
+      else setError("Download failed")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Download failed")
     }
@@ -172,11 +163,10 @@ export function PresentationMaterials({ speakerId }: PresentationMaterialsProps)
     if (!confirm("Are you sure you want to delete this file?")) return
 
     try {
-      const response = await fetch(`/api/materials/${materialId}`, {
+      await apiFetch(`/api/materials/${materialId}`, {
         method: "DELETE",
+        auth: true,
       })
-
-      if (!response.ok) throw new Error("Failed to delete file")
 
       setSessions((prevSessions) =>
         prevSessions.map((session) => ({
@@ -191,12 +181,11 @@ export function PresentationMaterials({ speakerId }: PresentationMaterialsProps)
 
   const handleView = async (materialId: string, fileUrl: string) => {
     try {
-      await fetch(`/api/materials/${materialId}/view`, { method: "POST" })
-      window.open(fileUrl, "_blank")
+      await apiFetch(`/api/materials/${materialId}/view`, { method: "POST", auth: true })
     } catch (err) {
       console.error("Failed to track view:", err)
-      window.open(fileUrl, "_blank")
     }
+    window.open(fileUrl, "_blank")
   }
 
   const getFileIcon = (type: string) => {
@@ -293,21 +282,16 @@ export function PresentationMaterials({ speakerId }: PresentationMaterialsProps)
 
       const updatedYoutubeLinks = [...(session.youtube || []), url]
 
-      const response = await fetch(`/api/sessions/${sessionId}`, {
+      const data = await apiFetch<{ session?: { youtube?: string[] } }>(`/api/sessions/${sessionId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ youtube: updatedYoutubeLinks }),
+        body: { youtube: updatedYoutubeLinks },
+        auth: true,
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to add YouTube link")
-      }
-
-      const data = await response.json()
-
       setSessions((prevSessions) =>
-        prevSessions.map((s) => (s.id === sessionId ? { ...s, youtube: data.session.youtube } : s)),
+        prevSessions.map((s) =>
+          s.id === sessionId ? { ...s, youtube: data?.session?.youtube ?? updatedYoutubeLinks } : s,
+        ),
       )
 
       setYoutubeInput((prev) => ({ ...prev, [sessionId]: "" }))
@@ -326,18 +310,16 @@ export function PresentationMaterials({ speakerId }: PresentationMaterialsProps)
 
       const updatedYoutubeLinks = session.youtube.filter((url) => url !== urlToRemove)
 
-      const response = await fetch(`/api/sessions/${sessionId}`, {
+      const data = await apiFetch<{ session?: { youtube?: string[] } }>(`/api/sessions/${sessionId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ youtube: updatedYoutubeLinks }),
+        body: { youtube: updatedYoutubeLinks },
+        auth: true,
       })
 
-      if (!response.ok) throw new Error("Failed to remove YouTube link")
-
-      const data = await response.json()
-
       setSessions((prevSessions) =>
-        prevSessions.map((s) => (s.id === sessionId ? { ...s, youtube: data.session.youtube } : s)),
+        prevSessions.map((s) =>
+          s.id === sessionId ? { ...s, youtube: data?.session?.youtube ?? updatedYoutubeLinks } : s,
+        ),
       )
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to remove YouTube link")

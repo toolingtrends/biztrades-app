@@ -15,7 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { getCurrentUserId } from "@/lib/api"
+import { apiFetch, getCurrentUserId } from "@/lib/api"
 
 interface Review {
   id: string
@@ -94,12 +94,12 @@ export default function FeedbackReplyManagement({ speakerId }: { speakerId?: str
 
   const fetchSessions = async () => {
     if (!currentSpeakerId) return
-    
     try {
-      const response = await fetch(`/api/speakers/${currentSpeakerId}/sessions`)
-      if (!response.ok) throw new Error("Failed to fetch sessions")
-      const data = await response.json()
-      setSessions(data.sessions || [])
+      const data = await apiFetch<{ success?: boolean; sessions?: Session[] }>(
+        `/api/speakers/${currentSpeakerId}/sessions`,
+        { auth: true }
+      )
+      setSessions(Array.isArray(data?.sessions) ? data.sessions : [])
     } catch (error) {
       console.error("Error fetching sessions:", error)
       toast({
