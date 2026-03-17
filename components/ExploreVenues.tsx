@@ -21,7 +21,7 @@ export default function ExploreVenues() {
   useEffect(() => {
     async function fetchOrganizersVenue() {
       try {
-        const res = await fetch("api/organizers/venues")
+        const res = await fetch("/api/organizers/venues")
         if (!res.ok) throw new Error("Failed to get data")
         const data = await res.json()
         setOrganizers(data || [])
@@ -67,7 +67,8 @@ export default function ExploreVenues() {
   }
 
   const getVenueImage = (venue: any) => {
-    return venue.images?.[0] || "/city/c1.jpg"
+    const img = venue.images?.[0] ?? venue.avatar ?? venue.venueImages?.[0]
+    return img || "/city/c1.jpg"
   }
 
   if (loading) return <p className="text-center py-12">Loading venues...</p>
@@ -247,8 +248,8 @@ function VenueCard({ venue, onClick, getImage }: {
             {/* Left side: Location */}
             <div className="flex items-center max-w-[120px]">
               <MapPin className="w-3 h-3 mr-1 text-black flex-shrink-0" />
-              <span className="text-xs text-black truncate">
-                {venue.location?.city || "No address"}
+              <span className="text-xs text-black truncate" title={venue.address || venue.location?.address || venue.venueAddress}>
+                {venue.location?.city || venue.venueCity || venue.address || venue.location?.address || "No address"}
               </span>
             </div>
 

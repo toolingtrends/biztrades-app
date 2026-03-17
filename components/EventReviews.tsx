@@ -180,8 +180,7 @@ export default function EventReviews() {
   }
 
   const formatFollowers = (num: number) => {
-    // Format with commas for thousands (like 110,773)
-    return num.toLocaleString('en-US')
+    return num.toLocaleString("en-US")
   }
 
   // Get events for the current slide
@@ -215,10 +214,11 @@ export default function EventReviews() {
           {/* Cards grid - always shows 4 cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {getEventsForCurrentSlide().map((event, index) => {
-              // Use event.followers if available, otherwise use visitorCounts with a base
-              const baseFollowers = event.followers || 110773
-              const extraFollowers = visitorCounts[event.id] || 0
-              const totalFollowers = baseFollowers + extraFollowers
+              const totalFollowers = typeof (event as any).followersCount === "number"
+                ? (event as any).followersCount
+                : typeof event.followers === "number"
+                  ? event.followers
+                  : 0
               const formattedFollowers = formatFollowers(totalFollowers)
               
               return (
