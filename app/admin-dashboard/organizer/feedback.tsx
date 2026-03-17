@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { apiFetch } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -62,22 +63,27 @@ export default function OrganizerFeedbackPage() {
   const fetchFeedbacks = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/admin/exhibitor/exhibitor-feedback")
-      const data = await response.json()
-      setFeedbacks(Array.isArray(data) ? data : [])
+      const data = await apiFetch<Feedback[] | { data?: Feedback[] }>(
+        "/api/admin/exhibitors/exhibitor-feedback",
+        { auth: true },
+      )
+      const list = Array.isArray(data) ? data : data?.data ?? []
+      setFeedbacks(list)
     } catch (error) {
       console.error("Error fetching feedbacks:", error)
+      setFeedbacks([])
     } finally {
       setLoading(false)
     }
   }
 
   const filteredFeedbacks = feedbacks.filter((feedback) => {
+    const q = searchQuery.toLowerCase()
     const matchesSearch =
-      feedback.organizer?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      feedback.organizer?.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      feedback.exhibitor?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (feedback.event.title?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
+      (feedback.organizer?.name ?? "").toLowerCase().includes(q) ||
+      (feedback.organizer?.email ?? "").toLowerCase().includes(q) ||
+      (feedback.exhibitor?.name ?? "").toLowerCase().includes(q) ||
+      (feedback.event?.title ?? "").toLowerCase().includes(q)
 
     const matchesStatus =
       statusFilter === "all" ||
@@ -118,20 +124,14 @@ export default function OrganizerFeedbackPage() {
     if (!selectedFeedback) return
 
     try {
-      const response = await fetch(`/api/admin/exhibitor/exhibitor-feedback/${selectedFeedback.id}`, {
+      await apiFetch(`/api/admin/exhibitors/exhibitor-feedback/${selectedFeedback.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: actionType,
-          reason: actionReason,
-        }),
+        auth: true,
+        body: { action: actionType, reason: actionReason },
       })
-
-      if (response.ok) {
-        await fetchFeedbacks()
-        setActionOpen(false)
-        setSelectedFeedback(null)
-      }
+      await fetchFeedbacks()
+      setActionOpen(false)
+      setSelectedFeedback(null)
     } catch (error) {
       console.error("Error updating feedback:", error)
     }

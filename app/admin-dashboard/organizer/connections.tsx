@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Search, Users, TrendingUp, UserPlus, Eye, Mail, Calendar, Building } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { apiFetch } from "@/lib/api"
 
 interface Organizer {
   id: string
@@ -54,10 +55,12 @@ export default function OrganizerConnectionsPage() {
   const fetchOrganizers = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/admin/organizers/organizer-connections")
-      if (!response.ok) throw new Error("Failed to fetch organizers")
-      const data = await response.json()
-      setOrganizers(data)
+      const data = await apiFetch<Organizer[] | { data?: Organizer[] }>(
+        "/api/admin/organizers/organizer-connections",
+        { auth: true },
+      )
+      const list = Array.isArray(data) ? data : data.data ?? []
+      setOrganizers(list)
     } catch (error) {
       console.error("Error fetching organizers:", error)
     } finally {
@@ -69,9 +72,10 @@ export default function OrganizerConnectionsPage() {
     try {
       setLoadingDetails(true)
       setDetailsOpen(true)
-      const response = await fetch(`/api/admin/organizers/organizer-connections/${organizerId}`)
-      if (!response.ok) throw new Error("Failed to fetch details")
-      const data = await response.json()
+      const data = await apiFetch<ConnectionDetail>(
+        `/api/admin/organizers/organizer-connections/${organizerId}`,
+        { auth: true },
+      )
       setSelectedOrganizer(data)
     } catch (error) {
       console.error("Error fetching details:", error)
@@ -206,17 +210,15 @@ export default function OrganizerConnectionsPage() {
                 <TableHead>Organizer</TableHead>
                 <TableHead>Organization</TableHead>
                 <TableHead>Email</TableHead>
-                {/* <TableHead>Total Followers</TableHead> */}
+                <TableHead>Total Followers</TableHead>
                 <TableHead>Events</TableHead>
-                {/* <TableHead>Active Events</TableHead> */}
                 <TableHead>Joined</TableHead>
-                {/* <TableHead>Actions</TableHead> */}
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredOrganizers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                  <TableCell colSpan={6} className="text-center py-8 text-gray-500">
                     No organizers found
                   </TableCell>
                 </TableRow>
@@ -228,8 +230,8 @@ export default function OrganizerConnectionsPage() {
                         <Avatar className="h-10 w-10">
                           <AvatarImage src={organizer.avatar || "/placeholder.svg"} />
                           <AvatarFallback>
-                            {organizer.firstName[0]}
-                            {organizer.lastName[0]}
+                            {organizer.firstName?.[0] ?? ""}
+                            {organizer.lastName?.[0] ?? ""}
                           </AvatarFallback>
                         </Avatar>
                         <div>
@@ -246,22 +248,20 @@ export default function OrganizerConnectionsPage() {
                       </div>
                     </TableCell>
                     <TableCell>{organizer.email}</TableCell>
-                    {/* <TableCell>
+                    <TableCell>
                       <Badge variant="secondary" className="font-semibold">
                         {organizer.totalFollowers} followers
                       </Badge>
-                    </TableCell> */}
-                    <TableCell>{organizer.totalEvents}</TableCell>
-                    {/* <TableCell>
-                      <Badge variant="outline">{organizer.activeEvents}</Badge>
-                    </TableCell> */}
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-medium">{organizer.totalEvents}</span>
+                      {organizer.activeEvents != null && organizer.activeEvents > 0 && (
+                        <span className="text-muted-foreground text-sm ml-1">
+                          ({organizer.activeEvents} active)
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell>{new Date(organizer.createdAt).toLocaleDateString()}</TableCell>
-                    {/* <TableCell>
-                      <Button size="sm" variant="outline" onClick={() => handleViewDetails(organizer.id)}>
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Details
-                      </Button>
-                    </TableCell> */}
                   </TableRow>
                 ))
               )}

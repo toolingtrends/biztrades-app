@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { apiFetch } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -61,35 +62,36 @@ export default function OrganizerVenueBookingsPage() {
     applyFilters()
   }, [searchQuery, statusFilter, bookings])
 
- const fetchBookings = async () => {
-  try {
-    setLoading(true)
-    const response = await fetch("/api/admin/organizers/venue-bookings")
-
-    if (!response.ok) throw new Error("Failed to fetch bookings")
-
-    const json = await response.json()
-    const list = json?.data || []   // <-- FIX
-
-    setBookings(list)
-    setFilteredBookings(list)
-  } catch (error) {
-    console.error("Error fetching bookings:", error)
-  } finally {
-    setLoading(false)
+  const fetchBookings = async () => {
+    try {
+      setLoading(true)
+      const json = await apiFetch<{ data?: VenueBooking[] }>(
+        "/api/admin/organizers/venue-bookings",
+        { auth: true },
+      )
+      const list = Array.isArray(json?.data) ? json.data : json?.data ?? []
+      setBookings(list)
+      setFilteredBookings(list)
+    } catch (error) {
+      console.error("Error fetching bookings:", error)
+      setBookings([])
+      setFilteredBookings([])
+    } finally {
+      setLoading(false)
+    }
   }
-}
 
 
   const applyFilters = () => {
     let filtered = [...bookings]
 
     if (searchQuery) {
+      const q = searchQuery.toLowerCase()
       filtered = filtered.filter(
         (booking) =>
-          booking.venue?.venueName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          booking.venue?.venueCity.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          booking.id.toLowerCase().includes(searchQuery.toLowerCase()),
+          (booking.venue?.venueName ?? "").toLowerCase().includes(q) ||
+          (booking.venue?.venueCity ?? "").toLowerCase().includes(q) ||
+          booking.id.toLowerCase().includes(q),
       )
     }
 
@@ -388,21 +390,21 @@ export default function OrganizerVenueBookingsPage() {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <p className="text-gray-600">Venue Name</p>
-                    <p className="font-medium">{selectedBooking.venue.venueName}</p>
+                    <p className="font-medium">{selectedBooking.venue?.venueName ?? "—"}</p>
                   </div>
                   <div>
                     <p className="text-gray-600">Venue Manager</p>
                     <p className="font-medium">
-                      {selectedBooking.venue.firstName} {selectedBooking.venue.lastName}
+                      {selectedBooking.venue?.firstName ?? ""} {selectedBooking.venue?.lastName ?? ""}
                     </p>
                   </div>
                   <div>
                     <p className="text-gray-600">Address</p>
-                    <p className="font-medium">{selectedBooking.venue.venueAddress}</p>
+                    <p className="font-medium">{selectedBooking.venue?.venueAddress ?? "—"}</p>
                   </div>
                   <div>
                     <p className="text-gray-600">City</p>
-                    <p className="font-medium">{selectedBooking.venue?.venueCity}</p>
+                    <p className="font-medium">{selectedBooking.venue?.venueCity ?? "—"}</p>
                   </div>
                 </div>
               </div>

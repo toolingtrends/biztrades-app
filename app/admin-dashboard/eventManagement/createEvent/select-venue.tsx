@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { apiFetch } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -55,14 +56,12 @@ export function SelectVenue({ selectedVenueId, onVenueChange }: SelectVenueProps
   const fetchVenues = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch('/api/admin/users?role=VENUE_MANAGER')
-      if (response.ok) {
-        const data = await response.json()
-        setVenues(data.users || [])
-      } else {
-        console.error("Failed to fetch venues")
-        setVenues([])
-      }
+      const data = await apiFetch<{ data?: Venue[]; users?: Venue[] }>(
+        "/api/admin/users?role=VENUE_MANAGER&limit=500",
+        { auth: true }
+      )
+      const list = Array.isArray(data?.data) ? data.data : data?.users ?? []
+      setVenues(list)
     } catch (error) {
       console.error("Error fetching venues:", error)
       setVenues([])
@@ -109,12 +108,12 @@ export function SelectVenue({ selectedVenueId, onVenueChange }: SelectVenueProps
       if (response.ok) {
         const data = await response.json()
         onVenueChange({
-          venueId: data.user.id,
-          venueName: data.user.venueName || '',
-          venueAddress: data.user.venueAddress || '',
-          city: data.user.venueCity || '',
-          state: data.user.venueState,
-          country: data.user.venueCountry
+          venueId: user.id,
+          venueName: user.venueName ?? "",
+          venueAddress: user.venueAddress ?? "",
+          city: user.venueCity ?? "",
+          state: user.venueState,
+          country: user.venueCountry
         })
         setShowCreateForm(false)
         setNewVenue({
@@ -126,7 +125,7 @@ export function SelectVenue({ selectedVenueId, onVenueChange }: SelectVenueProps
           maxCapacity: 0,
           amenities: []
         })
-        fetchVenues() // Refresh the list
+        fetchVenues()
       } else {
         alert("Error creating venue")
       }

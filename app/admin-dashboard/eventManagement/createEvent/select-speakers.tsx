@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { apiFetch } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -92,19 +93,15 @@ export function SelectSpeakers({ speakerSessions, onSpeakerSessionsChange }: Sel
   const fetchSpeakers = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch('/api/speakers')
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success) {
-          setSpeakers(data.speakers || [])
-        } else {
-          console.error("Error fetching speakers:", data.error)
-        }
-      } else {
-        console.error("Failed to fetch speakers:", response.statusText)
-      }
+      const data = await apiFetch<{ success?: boolean; speakers?: Speaker[] }>(
+        "/api/speakers",
+        { auth: true }
+      )
+      const list = Array.isArray(data?.speakers) ? data.speakers : []
+      setSpeakers(list)
     } catch (error) {
       console.error("Error fetching speakers:", error)
+      setSpeakers([])
     } finally {
       setIsLoading(false)
     }
@@ -137,7 +134,6 @@ export function SelectSpeakers({ speakerSessions, onSpeakerSessionsChange }: Sel
       const data = await response.json()
       
       if (data.success && data.speaker) {
-        // Add the new speaker to the local state
         const createdSpeaker = data.speaker
         setSpeakers(prev => [...prev, createdSpeaker])
         
@@ -166,7 +162,7 @@ export function SelectSpeakers({ speakerSessions, onSpeakerSessionsChange }: Sel
         
         alert("Speaker created successfully!")
       } else {
-        alert(`Error creating speaker: ${data.error || 'Unknown error'}`)
+        alert(`Error creating speaker: ${(data as { error?: string })?.error ?? "Unknown error"}`)
       }
     } catch (error) {
       console.error("Error creating speaker:", error)

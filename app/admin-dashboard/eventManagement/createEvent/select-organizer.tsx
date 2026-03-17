@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { apiFetch } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -44,24 +45,29 @@ export function SelectOrganizer({ selectedOrganizerId, onOrganizerChange }: Sele
   const fetchOrganizers = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch('/api/admin/users?role=ORGANIZER')
-      if (response.ok) {
-        const data = await response.json()
-        setOrganizers(data.users || [])
-      }
+      const data = await apiFetch<{ data?: Organizer[]; users?: Organizer[] }>(
+        "/api/admin/users?role=ORGANIZER&limit=500",
+        { auth: true }
+      )
+      const list = Array.isArray(data?.data) ? data.data : data?.users ?? []
+      setOrganizers(list)
     } catch (error) {
       console.error("Error fetching organizers:", error)
+      setOrganizers([])
     } finally {
       setIsLoading(false)
     }
   }
 
-  const filteredOrganizers = organizers.filter(organizer =>
-    organizer.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    organizer.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    organizer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    organizer.organizationName?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredOrganizers = organizers.filter((organizer) => {
+    const q = searchTerm.toLowerCase()
+    return (
+      (organizer.firstName ?? "").toLowerCase().includes(q) ||
+      (organizer.lastName ?? "").toLowerCase().includes(q) ||
+      (organizer.email ?? "").toLowerCase().includes(q) ||
+      (organizer.organizationName ?? organizer.company ?? "").toLowerCase().includes(q)
+    )
+  })
 
   const handleCreateOrganizer = async () => {
     if (!newOrganizer.firstName || !newOrganizer.lastName || !newOrganizer.email) {
@@ -70,23 +76,23 @@ export function SelectOrganizer({ selectedOrganizerId, onOrganizerChange }: Sele
     }
 
     try {
-      const response = await fetch('/api/admin/users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...newOrganizer,
-          role: 'ORGANIZER'
-        }),
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        onOrganizerChange(data.user.id, data.user.email)
+      const data = await apiFetch<{ user?: { id: string; email?: string }; data?: { id: string; email?: string } }>(
+        "/api/admin/users",
+        {
+          method: "POST",
+          auth: true,
+          body: {
+            ...newOrganizer,
+            role: "ORGANIZER",
+          },
+        }
+      )
+      const user = data?.user ?? data?.data
+      if (user?.id) {
+        onOrganizerChange(user.id, user.email)
         setShowCreateForm(false)
         setNewOrganizer({ firstName: "", lastName: "", email: "", organizationName: "", phone: "" })
-        fetchOrganizers() // Refresh the list
+        fetchOrganizers()
       } else {
         alert("Error creating organizer")
       }

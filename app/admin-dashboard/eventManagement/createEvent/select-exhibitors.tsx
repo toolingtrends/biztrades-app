@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { apiFetch } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -61,24 +62,41 @@ export function SelectExhibitors({ exhibitorBooths, onExhibitorBoothsChange }: S
   const fetchExhibitors = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch('/api/admin/exhibitors')
-      if (response.ok) {
-        const data = await response.json()
-        setExhibitors(data.exhibitors || [])
-      }
+      const data = await apiFetch<{ data?: Array<{ id: string; name?: string; firstName?: string; lastName?: string; email?: string; company?: string; phone?: string; industry?: string; location?: string; description?: string }>; exhibitors?: Exhibitor[] }>(
+        "/api/admin/exhibitors?limit=500",
+        { auth: true }
+      )
+      const raw = Array.isArray(data?.data) ? data.data : data?.exhibitors ?? []
+      const list: Exhibitor[] = raw.map((u: any) => ({
+        id: u.id,
+        companyName: u.company ?? u.companyName ?? "",
+        contactPerson: (u.name ?? [u.firstName, u.lastName].filter(Boolean).join(" ").trim()) || "—",
+        email: u.email ?? "",
+        phone: u.phone ?? "",
+        website: u.website ?? "",
+        industry: u.industry ?? u.companyIndustry ?? "",
+        location: u.location ?? "",
+        description: u.description ?? "",
+        avatar: u.avatar,
+      }))
+      setExhibitors(list)
     } catch (error) {
       console.error("Error fetching exhibitors:", error)
+      setExhibitors([])
     } finally {
       setIsLoading(false)
     }
   }
 
-  const filteredExhibitors = exhibitors.filter(exhibitor =>
-    exhibitor.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    exhibitor.contactPerson.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    exhibitor.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    exhibitor.industry.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredExhibitors = exhibitors.filter((exhibitor) => {
+    const q = searchTerm.toLowerCase()
+    return (
+      (exhibitor.companyName ?? "").toLowerCase().includes(q) ||
+      (exhibitor.contactPerson ?? "").toLowerCase().includes(q) ||
+      (exhibitor.email ?? "").toLowerCase().includes(q) ||
+      (exhibitor.industry ?? "").toLowerCase().includes(q)
+    )
+  })
 
  const handleCreateExhibitor = async () => {
   if (!newExhibitor.companyName || !newExhibitor.contactPerson || !newExhibitor.email) {
@@ -139,11 +157,10 @@ export function SelectExhibitors({ exhibitorBooths, onExhibitorBoothsChange }: S
         location: "",
         description: ""
       })
-      fetchExhibitors() // Refresh the list
-      alert(data.message || "Exhibitor created successfully!")
+      fetchExhibitors()
+      alert(data?.message ?? "Exhibitor created successfully!")
     } else {
-      console.error("Error response:", data)
-      alert(`Error creating exhibitor: ${data.error || data.message || 'Unknown error'}`)
+      alert(`Error creating exhibitor: ${(data as { error?: string; message?: string })?.error ?? (data as { message?: string })?.message ?? "Unknown error"}`)
     }
   } catch (error) {
     console.error("Error creating exhibitor:", error)

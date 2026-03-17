@@ -289,10 +289,10 @@ export default function SpeakerPage({ params }: SpeakerPageProps) {
       ))}
     </>
   ) : (
-    // Fallback to default background if no banners found
+    // Fallback to default background if no banners found (no query string — Next.js Image localPatterns)
     <div className="relative w-full h-full">
       <Image
-        src="/logo/logo-5.png?height=350&width=1200&text=Speaker+Background"
+        src="/logo/logo-5.png"
         alt="Speaker Background"
         fill
         className="object-cover"
