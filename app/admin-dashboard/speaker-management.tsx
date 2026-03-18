@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { apiFetch } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -127,7 +128,7 @@ export default function SpeakerManagement() {
     totalRevenue: 0,
   })
 
-  // Fetch speakers from API
+  // Fetch speakers from API (backend only)
   const fetchSpeakers = async (search = "", status = "all") => {
     try {
       setLoading(true)
@@ -135,56 +136,50 @@ export default function SpeakerManagement() {
       if (search) params.append("search", search)
       if (status !== "all") params.append("status", status)
       
-      const response = await fetch(`/api/admin/speakers?${params.toString()}`)
-      const data: SpeakersResponse = await response.json()
+      const data = await apiFetch(`/api/admin/speakers?${params.toString()}`, { auth: true })
+      const list = Array.isArray(data?.data) ? data.data : []
+      const pagination = data?.pagination ?? { page: 1, limit: 20, total: 0, totalPages: 0 }
       
-      console.log('API Response:', data)
+      const safeSpeakers: Speaker[] = list.map((s: Record<string, unknown>) => {
+        const name = ((s.name as string) ?? [s.firstName, s.lastName].filter(Boolean).join(" ").trim()) || "Unknown Speaker"
+        const isActive = s.isActive !== false
+        return {
+          id: (s.id as string) ?? "",
+          name,
+          email: (s.email as string) ?? "",
+          phone: (s.phone as string) ?? "",
+          avatar: (s.avatar as string) ?? "/placeholder.svg",
+          title: (s.title as string) ?? "",
+          company: (s.company as string) ?? "",
+          location: (s.location as string) ?? "",
+          expertise: Array.isArray(s.expertise) ? s.expertise as string[] : [],
+          bio: (s.bio as string) ?? "",
+          rating: 0,
+          totalSessions: 0,
+          upcomingSessions: 0,
+          completedSessions: 0,
+          totalEarnings: 0,
+          status: isActive ? "active" as const : "inactive" as const,
+          verified: true,
+          joinedDate: (s.createdAt as string)?.toString().split("T")[0] ?? "",
+          website: "",
+          socialMedia: { linkedin: "", twitter: "" },
+          speakingFee: 0,
+          availability: "unknown",
+          languages: ["English"],
+          experience: "",
+          lastLogin: undefined,
+          createdAt: (s.createdAt as string) ?? new Date().toISOString(),
+        }
+      })
+      setSpeakers(safeSpeakers)
       
-      if (data.success) {
-        const safeSpeakers = data.speakers.map(speaker => ({
-          ...speaker,
-          name: speaker.name || 'Unknown Speaker',
-          email: speaker.email || '',
-          company: speaker.company || '',
-          title: speaker.title || '',
-          location: speaker.location || '',
-          bio: speaker.bio || '',
-          expertise: speaker.expertise || [],
-          rating: speaker.rating || 0,
-          totalSessions: speaker.totalSessions || 0,
-          upcomingSessions: speaker.upcomingSessions || 0,
-          completedSessions: speaker.completedSessions || 0,
-          totalEarnings: speaker.totalEarnings || 0,
-          status: speaker.status || 'inactive',
-          verified: speaker.verified || false,
-          speakingFee: speaker.speakingFee || 0,
-          availability: speaker.availability || 'unknown',
-          languages: speaker.languages || ['English'],
-          experience: speaker.experience || 'Not specified',
-          website: speaker.website || '',
-          socialMedia: speaker.socialMedia || { linkedin: '', twitter: '' },
-          avatar: speaker.avatar || '/placeholder.svg',
-          joinedDate: speaker.joinedDate || new Date().toISOString().split('T')[0],
-          createdAt: speaker.createdAt || new Date().toISOString(),
-        }))
-        setSpeakers(safeSpeakers)
-        
-        setStatistics(data.statistics || {
-          totalSpeakers: safeSpeakers.length,
-          activeSpeakers: safeSpeakers.filter(s => s.status === 'active').length,
-          pendingSpeakers: safeSpeakers.filter(s => !s.verified).length,
-          totalRevenue: safeSpeakers.reduce((sum, s) => sum + s.totalEarnings, 0),
-        })
-      } else {
-        console.error('API returned error:', data)
-        setSpeakers([])
-        setStatistics({
-          totalSpeakers: 0,
-          activeSpeakers: 0,
-          pendingSpeakers: 0,
-          totalRevenue: 0,
-        })
-      }
+      setStatistics({
+        totalSpeakers: pagination.total ?? safeSpeakers.length,
+        activeSpeakers: safeSpeakers.filter(s => s.status === "active").length,
+        pendingSpeakers: 0,
+        totalRevenue: 0,
+      })
     } catch (error) {
       console.error("Error fetching speakers:", error)
       setSpeakers([])
@@ -231,15 +226,12 @@ export default function SpeakerManagement() {
     try {
       const isActive = newStatus === "active";
       
-      const response = await fetch(`/api/admin/speakers/${speakerId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive })
+      await apiFetch(`/api/admin/speakers/${speakerId}`, {
+        method: "PATCH",
+        body: { isActive },
+        auth: true,
       });
-
-      const data = await response.json();
-
-      if (data.success) {
+      {
         // Update locally for immediate feedback
         setSpeakers(speakers.map((speaker) => 
           speaker.id === speakerId ? { ...speaker, status: newStatus as any } : speaker
@@ -247,15 +239,10 @@ export default function SpeakerManagement() {
         
         // Refresh statistics
         fetchSpeakers(searchTerm, statusFilter);
-      } else {
-        console.error("Error updating speaker status:", data.error);
-        alert(`Error updating speaker status: ${data.error}`);
-        // Revert on error
-        fetchSpeakers(searchTerm, statusFilter);
       }
     } catch (error) {
       console.error("Error updating speaker status:", error);
-      alert('Error updating speaker status. Please try again.');
+      alert("Error updating speaker status. Please try again.");
       fetchSpeakers(searchTerm, statusFilter);
     }
   }
@@ -264,71 +251,43 @@ export default function SpeakerManagement() {
     try {
       const speaker = speakers.find(s => s.id === speakerId);
       if (!speaker) return;
-
       const newVerifiedStatus = !speaker.verified;
-      
-      const response = await fetch(`/api/admin/speakers/${speakerId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isVerified: newVerifiedStatus })
+      await apiFetch(`/api/admin/speakers/${speakerId}`, {
+        method: "PATCH",
+        body: { isVerified: newVerifiedStatus },
+        auth: true,
       });
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Update locally for immediate feedback
-        setSpeakers(
-          speakers.map((speaker) => 
-            speaker.id === speakerId ? { ...speaker, verified: newVerifiedStatus } : speaker
-          )
+      setSpeakers(
+        speakers.map((s) =>
+          s.id === speakerId ? { ...s, verified: newVerifiedStatus } : s
         )
-      } else {
-        console.error("Error toggling verification:", data.error);
-        alert(`Error toggling verification: ${data.error}`);
-        // Revert on error
-        fetchSpeakers(searchTerm, statusFilter);
-      }
+      );
     } catch (error) {
       console.error("Error toggling verification:", error);
-      alert('Error toggling verification. Please try again.');
+      alert("Error toggling verification. Please try again.");
       fetchSpeakers(searchTerm, statusFilter);
     }
   }
 
   const handleDeleteSpeaker = async (speakerId: string) => {
     try {
-      const response = await fetch(`/api/admin/speakers/${speakerId}`, {
-        method: 'DELETE'
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Update locally for immediate feedback
-        setSpeakers(speakers.filter((speaker) => speaker.id !== speakerId))
-        // Refresh statistics
-        fetchSpeakers(searchTerm, statusFilter);
-      } else {
-        console.error("Error deleting speaker:", data.error);
-        alert(`Error deleting speaker: ${data.error}`);
-        // Revert on error
-        fetchSpeakers(searchTerm, statusFilter);
-      }
+      await apiFetch(`/api/admin/speakers/${speakerId}`, { method: "DELETE", auth: true });
+      setSpeakers(speakers.filter((s) => s.id !== speakerId));
+      fetchSpeakers(searchTerm, statusFilter);
     } catch (error) {
       console.error("Error deleting speaker:", error);
-      alert('Error deleting speaker. Please try again.');
+      alert("Error deleting speaker. Please try again.");
       fetchSpeakers(searchTerm, statusFilter);
     }
   }
 
   const handleAddSpeaker = async (formData: any) => {
     try {
-      const response = await fetch('/api/admin/speakers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          firstName: formData.name.split(' ')[0],
-          lastName: formData.name.split(' ').slice(1).join(' '),
+      await apiFetch("/api/admin/speakers", {
+        method: "POST",
+        body: {
+          firstName: formData.name.split(" ")[0],
+          lastName: formData.name.split(" ").slice(1).join(" ") || "",
           email: formData.email,
           phone: formData.phone,
           bio: formData.bio,
@@ -336,23 +295,16 @@ export default function SpeakerManagement() {
           jobTitle: formData.title,
           location: formData.location,
           website: formData.website,
-          specialties: formData.expertise.split(',').map((item: string) => item.trim()),
+          specialties: formData.expertise?.split(",").map((item: string) => item.trim()).filter(Boolean) ?? [],
           speakingExperience: formData.experience,
-        })
-      })
-
-      const data = await response.json()
-
-      if (data.success) {
-        setIsAddDialogOpen(false)
-        fetchSpeakers(searchTerm, statusFilter)
-      } else {
-        console.error("Error adding speaker:", data.error)
-        alert(`Error adding speaker: ${data.error}`)
-      }
+        },
+        auth: true,
+      });
+      setIsAddDialogOpen(false);
+      fetchSpeakers(searchTerm, statusFilter);
     } catch (error) {
-      console.error("Error adding speaker:", error)
-      alert('Error adding speaker. Please try again.')
+      console.error("Error adding speaker:", error);
+      alert("Error adding speaker. Please try again.");
     }
   }
 
@@ -1055,38 +1007,23 @@ function EditSpeakerForm({ speaker, onSave, onCancel }: any) {
     setLoading(true)
 
     try {
-      const response = await fetch(`/api/admin/speakers/${speaker.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await apiFetch(`/api/admin/speakers/${speaker.id}`, {
+        method: "PATCH",
+        body: {
           firstName: formData.firstName,
           lastName: formData.lastName,
           email: formData.email,
           phone: formData.phone,
           bio: formData.bio,
           company: formData.company,
-          jobTitle: formData.jobTitle,
-          location: formData.location,
-          website: formData.website,
-          linkedin: formData.linkedin,
-          twitter: formData.twitter,
-          specialties: formData.specialties.split(',').map((item: string) => item.trim()),
-          speakingExperience: formData.speakingExperience,
-          status: formData.status,
-        })
-      })
-
-      const data = await response.json()
-
-      if (data.success) {
-        onSave()
-      } else {
-        console.error("Error updating speaker:", data.error)
-        alert(`Error updating speaker: ${data.error}`)
-      }
+          isActive: formData.status === "active",
+        },
+        auth: true,
+      });
+      onSave();
     } catch (error) {
-      console.error("Error updating speaker:", error)
-      alert('Error updating speaker. Please try again.')
+      console.error("Error updating speaker:", error);
+      alert("Error updating speaker. Please try again.");
     } finally {
       setLoading(false)
     }

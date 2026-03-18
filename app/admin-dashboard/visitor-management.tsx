@@ -21,6 +21,7 @@ import {
   UserX,
   FileText
 } from "lucide-react"
+import { adminApi } from "@/lib/admin-api"
 
 interface Visitor {
   id: string
@@ -139,28 +140,25 @@ export default function VisitorManagement() {
         ...(statusFilter !== "all" && { status: statusFilter })
       })
 
-      const response = await fetch(`/api/admin/visitors?${params}`)
-      const result = await response.json()
+      const result = await adminApi<{ success?: boolean; data?: { visitors: Visitor[]; pagination: PaginationInfo }; error?: string }>(`/visitors?${params}`)
 
-      if (result.success) {
-        // Ensure all visitors have the required stats structure
-        const validatedVisitors = result.data.visitors.map((visitor: any) => ({
+      if (result.success && result.data) {
+        const validatedVisitors = (result.data.visitors ?? []).map((visitor: any) => ({
           ...visitor,
           stats: {
-            totalRegistrations: visitor.stats?.totalRegistrations || 0,
-            confirmedRegistrations: visitor.stats?.confirmedRegistrations || 0,
-            totalConnections: visitor.stats?.totalConnections || 0,
-            acceptedConnections: visitor.stats?.acceptedConnections || 0,
-            totalAppointments: visitor.stats?.totalAppointments || 0,
-            completedAppointments: visitor.stats?.completedAppointments || 0,
-            savedEvents: visitor.stats?.savedEvents || 0
+            totalRegistrations: visitor.stats?.totalRegistrations ?? 0,
+            confirmedRegistrations: visitor.stats?.confirmedRegistrations ?? 0,
+            totalConnections: visitor.stats?.totalConnections ?? 0,
+            acceptedConnections: visitor.stats?.acceptedConnections ?? 0,
+            totalAppointments: visitor.stats?.totalAppointments ?? 0,
+            completedAppointments: visitor.stats?.completedAppointments ?? 0,
+            savedEvents: visitor.stats?.savedEvents ?? 0
           }
         }))
-        
         setVisitors(validatedVisitors)
-        setPagination(result.data.pagination)
+        setPagination(result.data.pagination ?? { page: 1, limit: 10, total: 0, totalPages: 0 })
       } else {
-        setError(result.error || "Failed to fetch visitors")
+        setError((result as any).error ?? "Failed to fetch visitors")
       }
     } catch (err) {
       setError("Failed to fetch visitors")
@@ -173,14 +171,13 @@ export default function VisitorManagement() {
   const fetchVisitorDetails = async (visitorId: string) => {
     try {
       setError("")
-      const response = await fetch(`/api/admin/visitors/${visitorId}`)
-      const result = await response.json()
+      const result = await adminApi<{ success?: boolean; data?: VisitorDetails; error?: string }>(`/visitors/${visitorId}`)
 
-      if (result.success) {
+      if (result.success && result.data) {
         setSelectedVisitor(result.data)
         setShowDetailsModal(true)
       } else {
-        setError(result.error || "Failed to fetch visitor details")
+        setError((result as any).error ?? "Failed to fetch visitor details")
       }
     } catch (err) {
       setError("Failed to fetch visitor details")
@@ -200,11 +197,10 @@ export default function VisitorManagement() {
         ...(statusFilter !== "all" && { status: statusFilter })
       })
 
-      const response = await fetch(`/api/admin/visitors?${params}`)
-      const result = await response.json()
+      const result = await adminApi<{ success?: boolean; data?: { visitors: any[] }; error?: string }>(`/visitors?${params}`)
 
-      if (result.success) {
-        const visitorsData = result.data.visitors
+      if (result.success && result.data) {
+        const visitorsData = result.data.visitors ?? []
         
         // Create CSV content with safe data access
         const headers = [
@@ -295,26 +291,18 @@ export default function VisitorManagement() {
 
   const handleStatusToggle = async (visitorId: string, currentStatus: boolean) => {
     try {
-      const response = await fetch(`/api/admin/visitors/${visitorId}`, {
+      await adminApi(`/visitors/${visitorId}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          isActive: !currentStatus
-        })
+        body: { isActive: !currentStatus }
       })
-
-      if (response.ok) {
-        setVisitors(prev =>
-          prev.map(visitor =>
-            visitor.id === visitorId
-              ? { ...visitor, isActive: !currentStatus }
-              : visitor
-          )
+      setVisitors(prev =>
+        prev.map(visitor =>
+          visitor.id === visitorId
+            ? { ...visitor, isActive: !currentStatus }
+            : visitor
         )
-        setShowActionsMenu(null)
-      }
+      )
+      setShowActionsMenu(null)
     } catch (error) {
       console.error("Error updating visitor status:", error)
       setError("Failed to update visitor status")
@@ -334,15 +322,8 @@ export default function VisitorManagement() {
   const handleDeleteVisitor = async (visitorId: string) => {
     if (confirm("Are you sure you want to delete this visitor? This action cannot be undone.")) {
       try {
-        const response = await fetch(`/api/admin/visitors/${visitorId}`, {
-          method: "DELETE"
-        })
-
-        if (response.ok) {
-          setVisitors(prev => prev.filter(visitor => visitor.id !== visitorId))
-        } else {
-          setError("Failed to delete visitor")
-        }
+        await adminApi(`/visitors/${visitorId}`, { method: "DELETE" })
+        setVisitors(prev => prev.filter(visitor => visitor.id !== visitorId))
       } catch (error) {
         console.error("Error deleting visitor:", error)
         setError("Failed to delete visitor")

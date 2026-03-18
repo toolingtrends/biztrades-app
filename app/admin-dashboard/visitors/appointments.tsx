@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { adminApi } from "@/lib/admin-api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -83,10 +84,8 @@ export default function VisitorAppointmentsPage() {
   const fetchAppointments = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/admin/visitors/visitor-appointments")
-      if (!response.ok) throw new Error("Failed to fetch appointments")
-      const data = await response.json()
-      setAppointments(data.appointments || [])
+      const data = await adminApi<{ appointments?: Appointment[] }>("/visitors/visitor-appointments")
+      setAppointments((data as any)?.appointments ?? [])
     } catch (error) {
       console.error("Error fetching appointments:", error)
     } finally {

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { apiFetch } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -58,10 +59,8 @@ export default function SpeakerFollowersPage() {
   const fetchSpeakers = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/admin/speaker/speaker-followers")
-      if (!response.ok) throw new Error("Failed to fetch speakers")
-      const data = await response.json()
-      setSpeakers(data)
+      const data = await apiFetch<Speaker[]>("/api/admin/speaker/speaker-followers", { auth: true })
+      setSpeakers(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error("Error fetching speakers:", error)
     } finally {
@@ -72,10 +71,11 @@ export default function SpeakerFollowersPage() {
   const fetchSpeakerFollowers = async (speakerId: string) => {
     try {
       setLoadingFollowers(true)
-      const response = await fetch(`/api/admin/speaker/speaker-followers/${speakerId}`)
-      if (!response.ok) throw new Error("Failed to fetch speaker followers")
-      const data = await response.json()
-      setSelectedSpeaker(data)
+      const data = await apiFetch<SpeakerWithFollowers>(
+        `/api/admin/speaker/speaker-followers/${speakerId}`,
+        { auth: true }
+      )
+      setSelectedSpeaker(data as SpeakerWithFollowers)
       setViewDialogOpen(true)
     } catch (error) {
       console.error("Error fetching speaker followers:", error)

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { adminApi } from "@/lib/admin-api"
 import { Search, Calendar, MapPin, Users, Eye, TrendingUp } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -77,11 +78,10 @@ export default function VenuesEventsPage() {
   const fetchVenueEvents = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/admin/venue/venue-events")
-      if (!response.ok) throw new Error("Failed to fetch venue events")
-      const data = await response.json()
-      setVenueEvents(data)
-      setFilteredData(data)
+      const data = await adminApi<VenueEvent[]>("/venue/venue-events")
+      const list = Array.isArray(data) ? data : []
+      setVenueEvents(list)
+      setFilteredData(list)
     } catch (error) {
       console.error("Error fetching venue events:", error)
     } finally {

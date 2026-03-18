@@ -215,25 +215,15 @@ export default function VenueManagement() {
     newStatus: "active" | "pending" | "suspended"
   ) => {
     try {
-      const response = await fetch(`/api/admin/venues/${venueId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          status: newStatus,
-        }),
+      await adminApi(`/venues/${venueId}`, {
+        method: "PATCH",
+        body: { isActive: newStatus === "active" },
       })
-
-      if (response.ok) {
-        setVenues(venues.map((venue) => 
-          venue.id === venueId ? { ...venue, status: newStatus } : venue
-        ))
-        setPendingVenues(pendingVenues.filter(venue => venue.id !== venueId))
-        toast.success(`Venue status updated to ${newStatus}`)
-      } else {
-        toast.error("Failed to update venue status")
-      }
+      setVenues(venues.map((venue) =>
+        venue.id === venueId ? { ...venue, status: newStatus } : venue
+      ))
+      setPendingVenues(pendingVenues.filter((venue) => venue.id !== venueId))
+      toast.success(`Venue status updated to ${newStatus}`)
     } catch (error) {
       console.error("Error updating venue status:", error)
       toast.error("Failed to update venue status")
@@ -310,24 +300,26 @@ export default function VenueManagement() {
 
   const handleEditVenue = async (venueId: string, formData: any) => {
     try {
-      const response = await fetch(`/api/admin/venues/${venueId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
+      await adminApi(`/venues/${venueId}`, {
+        method: "PATCH",
+        body: {
+          firstName: formData.contactPerson?.split(" ")[0],
+          lastName: formData.contactPerson?.split(" ").slice(1).join(" ") ?? "",
+          email: formData.email,
+          phone: formData.mobile,
+          venueName: formData.venueName,
+          venueCity: formData.city,
+          venueState: formData.state,
+          venueCountry: formData.country,
+          venueAddress: formData.address,
+          maxCapacity: formData.maxCapacity,
+          isActive: formData.status === "active",
         },
-        body: JSON.stringify(formData),
       })
-
-      const result = await response.json()
-
-      if (result.success) {
-        setIsEditDialogOpen(false)
-        fetchVenues()
-        fetchPendingVenues()
-        toast.success("Venue updated successfully")
-      } else {
-        toast.error(result.error || "Failed to update venue")
-      }
+      setIsEditDialogOpen(false)
+      fetchVenues()
+      fetchPendingVenues()
+      toast.success("Venue updated successfully")
     } catch (error) {
       console.error("Error updating venue:", error)
       toast.error("Failed to update venue")

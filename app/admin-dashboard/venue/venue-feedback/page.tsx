@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { adminApi } from "@/lib/admin-api"
 import { Search, Star, Eye, Check, X, Filter, TrendingUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -69,12 +70,9 @@ export default function VenueFeedbackPage() {
   const fetchFeedback = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/admin/venue/venue-feedback")
-      if (response.ok) {
-        const data = await response.json()
-        setFeedback(data.feedback)
-        setStats(data.stats)
-      }
+      const data = await adminApi<{ feedback: VenueFeedback[]; stats: Stats }>("/venue/venue-feedback")
+      setFeedback(data?.feedback ?? [])
+      setStats(data?.stats ?? { totalFeedback: 0, pendingReviews: 0, approvedFeedback: 0, averageRating: 0 })
     } catch (error) {
       console.error("Error fetching venue feedback:", error)
     } finally {
@@ -87,17 +85,13 @@ export default function VenueFeedbackPage() {
 
     try {
       setActionLoading(true)
-      const response = await fetch(`/api/admin/venue/venue-feedback/${selectedFeedback.id}`, {
+      await adminApi(`/venue/venue-feedback/${selectedFeedback.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "approve" }),
+        body: { action: "approve" },
       })
-
-      if (response.ok) {
-        await fetchFeedback()
-        setIsApproveOpen(false)
-        setSelectedFeedback(null)
-      }
+      await fetchFeedback()
+      setIsApproveOpen(false)
+      setSelectedFeedback(null)
     } catch (error) {
       console.error("Error approving venue feedback:", error)
     } finally {
@@ -110,21 +104,14 @@ export default function VenueFeedbackPage() {
 
     try {
       setActionLoading(true)
-      const response = await fetch(`/api/admin/venue/venue-feedback/${selectedFeedback.id}`, {
+      await adminApi(`/venue/venue-feedback/${selectedFeedback.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "reject",
-          reason: rejectionReason,
-        }),
+        body: { action: "reject", reason: rejectionReason },
       })
-
-      if (response.ok) {
-        await fetchFeedback()
-        setIsRejectOpen(false)
-        setSelectedFeedback(null)
-        setRejectionReason("")
-      }
+      await fetchFeedback()
+      setIsRejectOpen(false)
+      setSelectedFeedback(null)
+      setRejectionReason("")
     } catch (error) {
       console.error("Error rejecting venue feedback:", error)
     } finally {

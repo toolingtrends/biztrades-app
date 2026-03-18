@@ -16,6 +16,7 @@ import {
   EyeOff
 } from "lucide-react"
 import CloudinaryUpload from "@/components/cloudinary-upload"
+import { apiFetch } from "@/lib/api"
 
 interface Country {
   id: string
@@ -104,24 +105,14 @@ export default function CountriesManagement({ activeTab = "countries" }: Countri
     try {
       setLoading(true)
       if (currentActiveTab === "countries") {
-        const response = await fetch("/api/admin/countries?includeCounts=true")
-        if (response.ok) {
-          const data = await response.json()
-          setCountries(data)
-        } else {
-          console.error("Failed to fetch countries")
-        }
+        const data = await apiFetch<Country[]>("/api/admin/countries?includeCounts=true", { auth: true })
+        setCountries(Array.isArray(data) ? data : [])
       } else {
-        const response = await fetch("/api/admin/cities?includeCounts=true")
-        if (response.ok) {
-          const data = await response.json()
-          setCities(data)
-        } else {
-          console.error("Failed to fetch cities")
-        }
+        const data = await apiFetch<City[]>("/api/admin/cities?includeCounts=true", { auth: true })
+        setCities(Array.isArray(data) ? data : [])
       }
     } catch (error) {
-      console.error("Error fetching data:", error)
+      console.error("Failed to fetch data:", error)
     } finally {
       setLoading(false)
     }
@@ -129,284 +120,123 @@ export default function CountriesManagement({ activeTab = "countries" }: Countri
 
   const handleCountrySubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
     try {
-      const url = editingCountry 
+      const path = editingCountry
         ? `/api/admin/countries/${editingCountry.id}`
         : "/api/admin/countries"
-      
       const method = editingCountry ? "PUT" : "POST"
-
-      // Check if we have a new file to upload
-      const hasNewFile = countryFormData.flag && !countryFormData.flag.startsWith('http')
-      
-      if (hasNewFile) {
-        // Use FormData for file uploads
-        const formData = new FormData()
-        formData.append('name', countryFormData.name)
-        formData.append('code', countryFormData.code)
-        formData.append('currency', countryFormData.currency)
-        formData.append('timezone', countryFormData.timezone)
-        formData.append('isActive', countryFormData.isActive.toString())
-        formData.append('isPermitted', countryFormData.isPermitted.toString())
-        
-        // If it's a new file (not already uploaded URL), add it to form data
-        if (countryFormData.flag && !countryFormData.flag.startsWith('http')) {
-          // Convert data URL to blob if needed
-          if (countryFormData.flag.startsWith('data:')) {
-            const response = await fetch(countryFormData.flag)
-            const blob = await response.blob()
-            formData.append('flag', blob, 'flag.jpg')
-          } else {
-            // If it's already a Cloudinary URL, just pass it as string
-            formData.append('flag', countryFormData.flag)
-          }
-        }
-
-        const response = await fetch(url, {
-          method,
-          body: formData,
-        })
-
-        if (response.ok) {
-          setShowCountryForm(false)
-          setEditingCountry(null)
-          setCountryFormData({
-            name: "",
-            code: "",
-            flag: "",
-            currency: "USD",
-            timezone: "UTC",
-            isActive: true,
-            isPermitted: false
-          })
-          fetchData()
-        } else {
-          const error = await response.json()
-          alert(error.error || "Failed to save country")
-        }
-      } else {
-        // Use JSON for non-file updates
-        const response = await fetch(url, {
-          method,
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(countryFormData),
-        })
-
-        if (response.ok) {
-          setShowCountryForm(false)
-          setEditingCountry(null)
-          setCountryFormData({
-            name: "",
-            code: "",
-            flag: "",
-            currency: "USD",
-            timezone: "UTC",
-            isActive: true,
-            isPermitted: false
-          })
-          fetchData()
-        } else {
-          const error = await response.json()
-          alert(error.error || "Failed to save country")
-        }
-      }
-    } catch (error) {
-      console.error("Error saving country:", error)
-      alert("Failed to save country")
+      await apiFetch(path, {
+        method,
+        auth: true,
+        body: {
+          name: countryFormData.name,
+          code: countryFormData.code,
+          flag: countryFormData.flag && countryFormData.flag.startsWith("http") ? countryFormData.flag : "",
+          currency: countryFormData.currency,
+          timezone: countryFormData.timezone,
+          isActive: countryFormData.isActive,
+          isPermitted: countryFormData.isPermitted,
+        },
+      })
+      setShowCountryForm(false)
+      setEditingCountry(null)
+      setCountryFormData({
+        name: "",
+        code: "",
+        flag: "",
+        currency: "USD",
+        timezone: "UTC",
+        isActive: true,
+        isPermitted: false,
+      })
+      fetchData()
+    } catch (err: any) {
+      alert(err?.body?.error || err?.message || "Failed to save country")
     }
   }
 
   const handleCitySubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
     try {
-      const url = editingCity 
+      const path = editingCity
         ? `/api/admin/cities/${editingCity.id}`
         : "/api/admin/cities"
-      
       const method = editingCity ? "PUT" : "POST"
-
-      // Check if we have a new file to upload
-      const hasNewFile = cityFormData.image && !cityFormData.image.startsWith('http')
-      
-      if (hasNewFile) {
-        // Use FormData for file uploads
-        const formData = new FormData()
-        formData.append('name', cityFormData.name)
-        formData.append('countryId', cityFormData.countryId)
-        formData.append('latitude', cityFormData.latitude)
-        formData.append('longitude', cityFormData.longitude)
-        formData.append('timezone', cityFormData.timezone)
-        formData.append('isActive', cityFormData.isActive.toString())
-        formData.append('isPermitted', cityFormData.isPermitted.toString())
-        
-        // If it's a new file (not already uploaded URL), add it to form data
-        if (cityFormData.image && !cityFormData.image.startsWith('http')) {
-          // Convert data URL to blob if needed
-          if (cityFormData.image.startsWith('data:')) {
-            const response = await fetch(cityFormData.image)
-            const blob = await response.blob()
-            formData.append('image', blob, 'city.jpg')
-          } else {
-            // If it's already a Cloudinary URL, just pass it as string
-            formData.append('image', cityFormData.image)
-          }
-        }
-
-        const response = await fetch(url, {
-          method,
-          body: formData,
-        })
-
-        if (response.ok) {
-          setShowCityForm(false)
-          setEditingCity(null)
-          setCityFormData({
-            name: "",
-            countryId: "",
-            latitude: "",
-            longitude: "",
-            timezone: "UTC",
-            image: "",
-            isActive: true,
-            isPermitted: false
-          })
-          fetchData()
-        } else {
-          const error = await response.json()
-          alert(error.error || "Failed to save city")
-        }
-      } else {
-        // Use JSON for non-file updates
-        const response = await fetch(url, {
-          method,
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            ...cityFormData,
-            latitude: cityFormData.latitude ? parseFloat(cityFormData.latitude) : undefined,
-            longitude: cityFormData.longitude ? parseFloat(cityFormData.longitude) : undefined
-          }),
-        })
-
-        if (response.ok) {
-          setShowCityForm(false)
-          setEditingCity(null)
-          setCityFormData({
-            name: "",
-            countryId: "",
-            latitude: "",
-            longitude: "",
-            timezone: "UTC",
-            image: "",
-            isActive: true,
-            isPermitted: false
-          })
-          fetchData()
-        } else {
-          const error = await response.json()
-          alert(error.error || "Failed to save city")
-        }
-      }
-    } catch (error) {
-      console.error("Error saving city:", error)
-      alert("Failed to save city")
+      await apiFetch(path, {
+        method,
+        auth: true,
+        body: {
+          name: cityFormData.name,
+          countryId: cityFormData.countryId,
+          latitude: cityFormData.latitude ? parseFloat(cityFormData.latitude) : undefined,
+          longitude: cityFormData.longitude ? parseFloat(cityFormData.longitude) : undefined,
+          timezone: cityFormData.timezone,
+          image: cityFormData.image && cityFormData.image.startsWith("http") ? cityFormData.image : "",
+          isActive: cityFormData.isActive,
+          isPermitted: cityFormData.isPermitted,
+        },
+      })
+      setShowCityForm(false)
+      setEditingCity(null)
+      setCityFormData({
+        name: "",
+        countryId: "",
+        latitude: "",
+        longitude: "",
+        timezone: "UTC",
+        image: "",
+        isActive: true,
+        isPermitted: false,
+      })
+      fetchData()
+    } catch (err: any) {
+      alert(err?.body?.error || err?.message || "Failed to save city")
     }
   }
 
   const handleDeleteCountry = async (countryId: string) => {
-    if (!confirm("Are you sure you want to delete this country?")) {
-      return
-    }
-
+    if (!confirm("Are you sure you want to delete this country?")) return
     try {
-      const response = await fetch(`/api/admin/countries/${countryId}`, {
-        method: "DELETE",
-      })
-
-      if (response.ok) {
-        fetchData()
-      } else {
-        const error = await response.json()
-        alert(error.error || "Failed to delete country")
-      }
-    } catch (error) {
-      console.error("Error deleting country:", error)
-      alert("Failed to delete country")
+      await apiFetch(`/api/admin/countries/${countryId}`, { method: "DELETE", auth: true })
+      fetchData()
+    } catch (err: any) {
+      alert(err?.body?.error || err?.message || "Failed to delete country")
     }
   }
 
   const handleDeleteCity = async (cityId: string) => {
-    if (!confirm("Are you sure you want to delete this city?")) {
-      return
-    }
-
+    if (!confirm("Are you sure you want to delete this city?")) return
     try {
-      const response = await fetch(`/api/admin/cities/${cityId}`, {
-        method: "DELETE",
-      })
-
-      if (response.ok) {
-        fetchData()
-      } else {
-        const error = await response.json()
-        alert(error.error || "Failed to delete city")
-      }
-    } catch (error) {
-      console.error("Error deleting city:", error)
-      alert("Failed to delete city")
+      await apiFetch(`/api/admin/cities/${cityId}`, { method: "DELETE", auth: true })
+      fetchData()
+    } catch (err: any) {
+      alert(err?.body?.error || err?.message || "Failed to delete city")
     }
   }
 
   const handleToggleCountryPermission = async (countryId: string, currentPermission: boolean) => {
     try {
-      const response = await fetch(`/api/admin/countries/${countryId}`, {
+      await apiFetch(`/api/admin/countries/${countryId}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          isPermitted: !currentPermission
-        }),
+        auth: true,
+        body: { isPermitted: !currentPermission },
       })
-
-      if (response.ok) {
-        fetchData()
-      } else {
-        const error = await response.json()
-        alert(error.error || "Failed to update country permission")
-      }
-    } catch (error) {
-      console.error("Error updating country permission:", error)
-      alert("Failed to update country permission")
+      fetchData()
+    } catch (err: any) {
+      alert(err?.body?.error || err?.message || "Failed to update country permission")
     }
   }
 
   const handleToggleCityPermission = async (cityId: string, currentPermission: boolean) => {
     try {
-      const response = await fetch(`/api/admin/cities/${cityId}`, {
+      await apiFetch(`/api/admin/cities/${cityId}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          isPermitted: !currentPermission
-        }),
+        auth: true,
+        body: { isPermitted: !currentPermission },
       })
-
-      if (response.ok) {
-        fetchData()
-      } else {
-        const error = await response.json()
-        alert(error.error || "Failed to update city permission")
-      }
-    } catch (error) {
-      console.error("Error updating city permission:", error)
-      alert("Failed to update city permission")
+      fetchData()
+    } catch (err: any) {
+      alert(err?.body?.error || err?.message || "Failed to update city permission")
     }
   }
 

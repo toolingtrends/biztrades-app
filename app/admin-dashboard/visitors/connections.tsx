@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { adminApi } from "@/lib/admin-api"
 import { Search, Users, UserPlus, UserCheck, UserX, Eye, Calendar, Mail, Phone, Building2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -73,10 +74,8 @@ export default function VisitorConnectionsPage() {
       if (searchQuery) params.append("search", searchQuery)
       if (statusFilter !== "all") params.append("status", statusFilter)
 
-      const response = await fetch(`/api/admin/visitors/visitor-connections?${params}`)
-      if (!response.ok) throw new Error("Failed to fetch visitors")
-      const data = await response.json()
-      setVisitors(data.visitors || [])
+      const data = await adminApi<{ visitors?: Visitor[] }>(`/visitors/visitor-connections?${params}`)
+      setVisitors((data as any)?.visitors ?? [])
     } catch (error) {
       console.error("Error fetching visitors:", error)
     } finally {

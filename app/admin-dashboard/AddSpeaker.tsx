@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { Facebook, Linkedin, Twitter, Instagram, Upload, X } from "lucide-react";
 import { useState } from "react";
+import { apiFetch } from "@/lib/api";
 
 export default function AddSpeaker() {
   const [profileImage, setProfileImage] = useState<string | null>(null);
@@ -47,18 +48,12 @@ export default function AddSpeaker() {
         size: file.size
       });
 
-      const response = await fetch('/api/admin/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      const result = await apiFetch<{ success?: boolean; secure_url?: string }>(
+        "/api/admin/upload",
+        { method: "POST", body: formData, auth: true }
+      );
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || result.details || 'Upload failed');
-      }
-
-      if (result.success) {
+      if (result?.success && result?.secure_url) {
         setProfileImage(result.secure_url);
         console.log('Upload successful:', result.public_id);
       } else {
@@ -131,17 +126,13 @@ export default function AddSpeaker() {
         certifications: formData.certifications,
       };
 
-      const response = await fetch('/api/admin/speakers', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(speakerData),
+      const result = await apiFetch<{ success?: boolean }>("/api/admin/speakers", {
+        method: "POST",
+        body: speakerData,
+        auth: true,
       });
 
-      const result = await response.json();
-
-      if (response.ok && result.success) {
+      if (result?.success) {
         alert('Speaker created successfully!');
         // Reset form
         setFormData({

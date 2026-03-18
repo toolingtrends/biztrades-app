@@ -26,6 +26,7 @@ import {
   User,
 } from "lucide-react"
 import { toast } from "sonner"
+import { adminApi } from "@/lib/admin-api"
 import { uploadVenueImages, uploadVenueLogo, uploadVenueDocuments } from "@/lib/upload-utils"
 
 interface VenueFormData {
@@ -267,17 +268,24 @@ export default function AddVenueComponent() {
         venueImages: allVenueImages,
       }
 
-      const response = await fetch('/api/admin/venues', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const result = await adminApi<{ success?: boolean; error?: string }>("/venues", {
+        method: "POST",
+        body: {
+          email: venueData.email,
+          firstName: venueData.contactPerson?.split(" ")[0] ?? "Venue",
+          lastName: venueData.contactPerson?.split(" ").slice(1).join(" ") ?? "",
+          phone: venueData.mobile,
+          venueName: venueData.venueName,
+          venueCity: venueData.city,
+          venueState: venueData.state,
+          venueCountry: venueData.country,
+          venueAddress: venueData.address,
+          maxCapacity: venueData.maxCapacity,
+          isActive: venueData.status === "active",
         },
-        body: JSON.stringify(venueData),
       })
 
-      const result = await response.json()
-
-      if (result.success) {
+      if (result?.success !== false) {
         toast.success("Venue added successfully!")
         // Reset form
         setFormData({
@@ -310,7 +318,7 @@ export default function AddVenueComponent() {
         })
         setActiveTab("profile")
       } else {
-        toast.error(result.error || "Failed to add venue")
+        toast.error((result as { error?: string })?.error || "Failed to add venue")
       }
     } catch (error) {
       console.error('Error adding venue:', error)

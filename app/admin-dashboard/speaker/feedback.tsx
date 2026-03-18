@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { apiFetch } from "@/lib/api"
 import { Search, Star, Eye, Check, X, Filter, TrendingUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -85,17 +86,17 @@ export default function SpeakerFeedbackPage() {
   const fetchFeedback = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/admin/speaker/speaker-feedback")
-      if (response.ok) {
-        const data = await response.json()
-        setFeedback(data.feedback || [])
-        setStats(data.stats || {
-          totalFeedback: 0,
-          pendingReviews: 0,
-          approvedFeedback: 0,
-          averageRating: 0,
-        })
-      }
+      const data = await apiFetch<{ feedback: Feedback[]; stats: Stats }>(
+        "/api/admin/speaker/speaker-feedback",
+        { auth: true }
+      )
+      setFeedback(data?.feedback ?? [])
+      setStats(data?.stats ?? {
+        totalFeedback: 0,
+        pendingReviews: 0,
+        approvedFeedback: 0,
+        averageRating: 0,
+      })
     } catch (error) {
       console.error("Error fetching feedback:", error)
     } finally {
@@ -105,20 +106,16 @@ export default function SpeakerFeedbackPage() {
 
   const handleApprove = async () => {
     if (!selectedFeedback) return
-
     try {
       setActionLoading(true)
-      const response = await fetch(`/api/admin/speaker/speaker-feedback/${selectedFeedback.id}`, {
+      await apiFetch(`/api/admin/speaker/speaker-feedback/${selectedFeedback.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isApproved: true }),
+        body: { isApproved: true },
+        auth: true,
       })
-
-      if (response.ok) {
-        await fetchFeedback()
-        setIsApproveOpen(false)
-        setSelectedFeedback(null)
-      }
+      await fetchFeedback()
+      setIsApproveOpen(false)
+      setSelectedFeedback(null)
     } catch (error) {
       console.error("Error approving feedback:", error)
     } finally {
@@ -128,21 +125,17 @@ export default function SpeakerFeedbackPage() {
 
   const handleReject = async () => {
     if (!selectedFeedback) return
-
     try {
       setActionLoading(true)
-      const response = await fetch(`/api/admin/speaker/speaker-feedback/${selectedFeedback.id}`, {
+      await apiFetch(`/api/admin/speaker/speaker-feedback/${selectedFeedback.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isApproved: false, isPublic: false }),
+        body: { isApproved: false, isPublic: false },
+        auth: true,
       })
-
-      if (response.ok) {
-        await fetchFeedback()
-        setIsRejectOpen(false)
-        setSelectedFeedback(null)
-        setRejectionReason("")
-      }
+      await fetchFeedback()
+      setIsRejectOpen(false)
+      setSelectedFeedback(null)
+      setRejectionReason("")
     } catch (error) {
       console.error("Error rejecting feedback:", error)
     } finally {
@@ -151,9 +144,9 @@ export default function SpeakerFeedbackPage() {
   }
 
   const filteredFeedback = feedback.filter((item) => {
-    const speakerName = `${item.speaker.firstName} ${item.speaker.lastName}`.toLowerCase()
-    const userName = `${item.user.firstName} ${item.user.lastName}`.toLowerCase()
-    const speakerEmail = item.speaker.email?.toLowerCase() || ""
+    const speakerName = `${item.speaker?.firstName ?? ""} ${item.speaker?.lastName ?? ""}`.trim().toLowerCase()
+    const userName = `${item.user?.firstName ?? ""} ${item.user?.lastName ?? ""}`.trim().toLowerCase()
+    const speakerEmail = item.speaker?.email?.toLowerCase() || ""
     const searchLower = searchQuery.toLowerCase()
 
     const matchesSearch =

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { apiFetch } from "@/lib/api"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -76,12 +77,14 @@ export default function ExhibitorAppointmentsPage() {
   const fetchAppointments = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/admin/exhibitor/exhibitor-appointments")
-      if (!response.ok) throw new Error("Failed to fetch appointments")
-      const data = await response.json()
-      setAppointments(data.appointments)
+      const data = await apiFetch<{ appointments?: Appointment[] }>(
+        "/api/admin/exhibitors/exhibitor-appointments",
+        { auth: true }
+      )
+      setAppointments(Array.isArray(data?.appointments) ? data.appointments : [])
     } catch (error) {
       console.error("Error fetching appointments:", error)
+      setAppointments([])
     } finally {
       setLoading(false)
     }
@@ -114,14 +117,11 @@ export default function ExhibitorAppointmentsPage() {
 
   const handleUpdateStatus = async (appointmentId: string, status: string, cancelReason?: string) => {
     try {
-      const response = await fetch(`/api/admin/exhibitor/exhibitor-appointments/${appointmentId}`, {
+      await apiFetch(`/api/admin/exhibitors/exhibitor-appointments/${appointmentId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, cancelReason }),
+        auth: true,
+        body: { status, cancelReason },
       })
-
-      if (!response.ok) throw new Error("Failed to update appointment")
-
       await fetchAppointments()
       setActionDialog({ open: false, type: null, appointment: null })
       setCancelReason("")

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { adminApi } from "@/lib/admin-api"
 import { Search, Calendar, Clock, User, MapPin, CheckCircle, XCircle, Eye, Phone, Mail, Building } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -77,10 +78,8 @@ export default function VenueBookingsPage() {
   const fetchBookings = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/admin/venue/venue-bookings")
-      if (!response.ok) throw new Error("Failed to fetch bookings")
-      const data = await response.json()
-      setBookings(data.bookings)
+      const data = await adminApi<{ bookings: VenueBooking[] }>("/venue/venue-bookings")
+      setBookings(data?.bookings ?? [])
     } catch (error) {
       console.error("Error fetching bookings:", error)
     } finally {
@@ -92,17 +91,13 @@ export default function VenueBookingsPage() {
     if (!selectedBooking || !currentAction) return
 
     try {
-      const response = await fetch(`/api/admin/venue/venue-bookings/${selectedBooking.id}`, {
+      await adminApi(`/venue/venue-bookings/${selectedBooking.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           status: currentAction === "confirm" ? "CONFIRMED" : "CANCELLED",
           notes: actionNotes,
-        }),
+        },
       })
-
-      if (!response.ok) throw new Error(`Failed to ${currentAction} booking`)
-
       await fetchBookings()
       setActionDialogOpen(false)
       setActionNotes("")

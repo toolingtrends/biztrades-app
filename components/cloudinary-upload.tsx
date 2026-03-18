@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react"
 import { Upload, X, Image as ImageIcon } from "lucide-react"
+import { apiFetch } from "@/lib/api"
 
 interface CloudinaryUploadProps {
   onUploadComplete: (url: string) => void
@@ -37,30 +38,23 @@ export default function CloudinaryUpload({
     setUploading(true)
 
     try {
-      // Create form data
       const formData = new FormData()
-      formData.append('file', file)
-      formData.append('folder', folder)
+      formData.append("file", file)
+      formData.append("folder", folder)
 
-      // Upload to API route
-      const response = await fetch('/api/admin/upload', {
-        method: 'POST',
+      const data = await apiFetch<{ secure_url: string }>("/api/admin/upload", {
+        method: "POST",
         body: formData,
+        auth: true,
       })
 
-      if (!response.ok) {
-        throw new Error('Upload failed')
-      }
-
-      const data = await response.json()
-      
-      // Set preview and call callback
-      setPreviewUrl(data.secure_url)
-      onUploadComplete(data.secure_url)
-
+      const url = data?.secure_url
+      if (!url) throw new Error("Upload failed")
+      setPreviewUrl(url)
+      onUploadComplete(url)
     } catch (error) {
-      console.error('Upload error:', error)
-      alert('Failed to upload image. Please try again.')
+      console.error("Upload error:", error)
+      alert("Failed to upload image. Please try again.")
     } finally {
       setUploading(false)
       // Reset file input

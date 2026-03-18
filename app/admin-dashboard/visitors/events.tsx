@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { adminApi } from "@/lib/admin-api"
 import {
   Card,
   CardContent,
@@ -81,11 +82,10 @@ export default function VisitorEventsPage() {
 
   const fetchVisitors = async () => {
     try {
-      const response = await fetch("/api/admin/visitors/visitor-events")
-      if (!response.ok) throw new Error("Failed to fetch visitors")
-      const data = await response.json()
-      setVisitors(data)
-      setFilteredVisitors(data)
+      const data = await adminApi<VisitorEvent[]>("/visitors/visitor-events")
+      const list = Array.isArray(data) ? data : (data as any)?.data ?? []
+      setVisitors(list)
+      setFilteredVisitors(list)
     } catch (error) {
       console.error("Error fetching visitors:", error)
     } finally {

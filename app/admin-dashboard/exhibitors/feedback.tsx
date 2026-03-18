@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { apiFetch } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -59,12 +60,14 @@ export default function ExhibitorFeedbackPage() {
 
   const fetchFeedbacks = async () => {
     try {
-      const response = await fetch("/api/admin/exhibitor/exhibitor-feedback")
-      if (!response.ok) throw new Error("Failed to fetch feedbacks")
-      const data = await response.json()
-      setFeedbacks(data)
+      const data = await apiFetch<Feedback[]>(
+        "/api/admin/exhibitors/exhibitor-feedback",
+        { auth: true }
+      )
+      setFeedbacks(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error("Error fetching feedbacks:", error)
+      setFeedbacks([])
     } finally {
       setLoading(false)
     }
@@ -77,12 +80,12 @@ export default function ExhibitorFeedbackPage() {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter(
         (f) =>
-          f.exhibitor.firstName.toLowerCase().includes(query) ||
-          f.exhibitor.lastName.toLowerCase().includes(query) ||
-          f.exhibitor.email.toLowerCase().includes(query) ||
-          f.exhibitor.company.toLowerCase().includes(query) ||
-          f.user.firstName.toLowerCase().includes(query) ||
-          f.user.lastName.toLowerCase().includes(query) ||
+          (f.exhibitor?.firstName ?? "").toLowerCase().includes(query) ||
+          (f.exhibitor?.lastName ?? "").toLowerCase().includes(query) ||
+          (f.exhibitor?.email ?? "").toLowerCase().includes(query) ||
+          (f.exhibitor?.company ?? "").toLowerCase().includes(query) ||
+          (f.user?.firstName ?? "").toLowerCase().includes(query) ||
+          (f.user?.lastName ?? "").toLowerCase().includes(query) ||
           (f.title && f.title.toLowerCase().includes(query)) ||
           (f.comment && f.comment.toLowerCase().includes(query)),
       )
@@ -105,13 +108,11 @@ export default function ExhibitorFeedbackPage() {
 
   const handleApprove = async (id: string) => {
     try {
-      const response = await fetch(`/api/admin/exhibitor/exhibitor-feedback/${id}`, {
+      await apiFetch(`/api/admin/exhibitors/exhibitor-feedback/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isApproved: true }),
+        auth: true,
+        body: { action: "approved", isApproved: true },
       })
-
-      if (!response.ok) throw new Error("Failed to approve feedback")
       fetchFeedbacks()
     } catch (error) {
       console.error("Error approving feedback:", error)
@@ -120,13 +121,11 @@ export default function ExhibitorFeedbackPage() {
 
   const handleReject = async (id: string) => {
     try {
-      const response = await fetch(`/api/admin/exhibitor-feedback/${id}`, {
+      await apiFetch(`/api/admin/exhibitors/exhibitor-feedback/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isApproved: false, isPublic: false }),
+        auth: true,
+        body: { action: "rejected", isApproved: false, isPublic: false },
       })
-
-      if (!response.ok) throw new Error("Failed to reject feedback")
       fetchFeedbacks()
     } catch (error) {
       console.error("Error rejecting feedback:", error)

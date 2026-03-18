@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { apiFetch } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -87,37 +88,47 @@ export default function ExhibitorManagement() {
     try {
       setLoading(true)
       setError(null)
-      
       const params = new URLSearchParams()
-      if (searchTerm) params.append('search', searchTerm)
-      if (statusFilter !== 'all') params.append('status', statusFilter)
-      if (industryFilter !== 'all') params.append('industry', industryFilter)
-      
-      const response = await fetch(`/api/admin/exhibitors?${params}`)
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch exhibitors: ${response.status}`)
-      }
-      
-      const data = await response.json()
-      
-      if (data.exhibitors) {
-        // Ensure all required fields have values
-        const safeExhibitors = data.exhibitors.map((exhibitor: Exhibitor) => ({
-          ...exhibitor,
-          companyName: exhibitor.companyName || "Unnamed Company",
-          contactPerson: exhibitor.contactPerson || "Unknown Contact",
-          email: exhibitor.email || "No email",
-          phone: exhibitor.phone || "No phone",
-          location: exhibitor.location || "Unknown location",
-          industry: exhibitor.industry || "Other",
-          avatar: exhibitor.avatar || "/placeholder.svg",
-        }))
-        setExhibitors(safeExhibitors)
-      }
-    } catch (error) {
-      console.error('Error fetching exhibitors:', error)
-      setError('Failed to load exhibitors')
+      if (searchTerm) params.append("search", searchTerm)
+      if (statusFilter !== "all") params.append("status", statusFilter)
+      if (industryFilter !== "all") params.append("industry", industryFilter)
+      const query = params.toString()
+      const path = `/api/admin/exhibitors${query ? `?${query}` : ""}`
+      const res = await apiFetch<{ success?: boolean; data?: Array<Record<string, unknown>>; pagination?: { total: number } }>(path, { auth: true })
+      const raw = Array.isArray(res?.data) ? res.data : []
+      const safeExhibitors: Exhibitor[] = raw.map((u: Record<string, unknown>) => {
+        const companyName = (u.company as string) ?? "Unnamed Company"
+        const contactPerson = (u.name as string) ?? ([u.firstName, u.lastName].filter(Boolean).join(" ").trim() || "Unknown Contact")
+        const isActive = u.isActive !== false
+        const status: "active" | "pending" | "suspended" = isActive ? "active" : "suspended"
+        return {
+          id: String(u.id),
+          companyName,
+          contactPerson,
+          email: String(u.email ?? ""),
+          phone: String(u.phone ?? ""),
+          website: "",
+          industry: "Other",
+          location: "",
+          status,
+          verified: false,
+          joinDate: String(u.createdAt ?? ""),
+          eventsParticipated: 0,
+          totalProducts: 0,
+          revenue: 0,
+          rating: 0,
+          avatar: "/placeholder.svg",
+          description: "",
+        }
+      })
+      const filtered =
+        statusFilter === "all"
+          ? safeExhibitors
+          : safeExhibitors.filter((e) => e.status === statusFilter)
+      setExhibitors(filtered)
+    } catch (err) {
+      console.error("Error fetching exhibitors:", err)
+      setError("Failed to load exhibitors")
       setExhibitors([])
     } finally {
       setLoading(false)
@@ -127,7 +138,7 @@ export default function ExhibitorManagement() {
   const fetchStats = async () => {
     try {
       const data = await import("@/lib/admin-api").then((m) => m.adminApi<{ success?: boolean; data?: { total?: number; active?: number } }>("/exhibitors/stats"))
-      if (data?.data) setStats({ total: data.data.total ?? 0, active: data.data.active ?? 0 })
+      if (data?.data) setStats((prev) => ({ ...prev, total: data.data?.total ?? 0, active: data.data?.active ?? 0 }))
     } catch (error) {
       console.error("Error fetching stats:", error)
     }
@@ -258,7 +269,7 @@ if (showAddForm) {
                 <Building2 className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.total}</div>
+                <div className="text-2xl font-bold">{stats.total ?? 0}</div>
                 <p className="text-xs text-muted-foreground">+12% from last month</p>
               </CardContent>
             </Card>
@@ -269,9 +280,9 @@ if (showAddForm) {
                 <CheckCircle className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.active}</div>
+                <div className="text-2xl font-bold">{stats.active ?? 0}</div>
                 <p className="text-xs text-muted-foreground">
-                  {stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0}% of total
+                  {(stats.total ?? 0) > 0 ? Math.round(((stats.active ?? 0) / (stats.total ?? 1)) * 100) : 0}% of total
                 </p>
               </CardContent>
             </Card>
@@ -282,7 +293,7 @@ if (showAddForm) {
                 <Star className="h-4 w-4 text-yellow-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.avgRating.toFixed(1)}</div>
+                <div className="text-2xl font-bold">{(stats.avgRating ?? 0).toFixed(1)}</div>
                 <p className="text-xs text-muted-foreground">Across all exhibitors</p>
               </CardContent>
             </Card>
@@ -301,11 +312,11 @@ if (showAddForm) {
                     <span>Active</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{stats.active}</span>
+                    <span className="font-medium">{stats.active ?? 0}</span>
                     <div className="w-20 bg-gray-200 rounded-full h-2">
                       <div
                         className="bg-green-600 h-2 rounded-full"
-                        style={{ width: `${stats.total > 0 ? (stats.active / stats.total) * 100 : 0}%` }}
+                        style={{ width: `${(stats.total ?? 0) > 0 ? ((stats.active ?? 0) / (stats.total ?? 1)) * 100 : 0}%` }}
                       ></div>
                     </div>
                   </div>
@@ -316,11 +327,11 @@ if (showAddForm) {
                     <span>Pending</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{stats.pending}</span>
+                    <span className="font-medium">{stats.pending ?? 0}</span>
                     <div className="w-20 bg-gray-200 rounded-full h-2">
                       <div
                         className="bg-yellow-600 h-2 rounded-full"
-                        style={{ width: `${stats.total > 0 ? (stats.pending / stats.total) * 100 : 0}%` }}
+                        style={{ width: `${(stats.total ?? 0) > 0 ? ((stats.pending ?? 0) / (stats.total ?? 1)) * 100 : 0}%` }}
                       ></div>
                     </div>
                   </div>
@@ -331,11 +342,11 @@ if (showAddForm) {
                     <span>Suspended</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{stats.suspended}</span>
+                    <span className="font-medium">{stats.suspended ?? 0}</span>
                     <div className="w-20 bg-gray-200 rounded-full h-2">
                       <div
                         className="bg-red-600 h-2 rounded-full"
-                        style={{ width: `${stats.total > 0 ? (stats.suspended / stats.total) * 100 : 0}%` }}
+                        style={{ width: `${(stats.total ?? 0) > 0 ? ((stats.suspended ?? 0) / (stats.total ?? 1)) * 100 : 0}%` }}
                       ></div>
                     </div>
                   </div>
