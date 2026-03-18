@@ -203,23 +203,18 @@ const transformOrganizerData = (organizer: Organizer) => {
 
   const submitApproval = async () => {
     try {
-      // Here you would implement the actual approval/rejection logic
-      const response = await fetch(`/api/admin/organizers/${selectedOrganizer?.id}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
+      if (!selectedOrganizer) return
+
+      await adminApi(`/organizers/${selectedOrganizer.id}`, {
+        method: "PATCH",
+        auth: true,
+        body: {
+          isActive: approvalAction === "approve",
+          isVerified: approvalAction === "approve",
+          approvalMessage,
         },
-        body: JSON.stringify({
-          action: approvalAction,
-          message: approvalMessage
-        })
       })
 
-      if (!response.ok) {
-        throw new Error('Failed to update organizer status')
-      }
-
-      // Refresh the organizers list
       await fetchOrganizers()
       setShowApprovalDialog(false)
       setApprovalMessage("")

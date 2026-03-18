@@ -4,7 +4,7 @@ import Image from "next/image"
 import { useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { FaFacebookF, FaTwitter, FaInstagram, FaLinkedinIn, FaYoutube, FaPlay } from "react-icons/fa"
+import { FaFacebookF, FaTwitter, FaInstagram, FaLinkedinIn, FaYoutube, FaPlay, FaFileAlt, FaExternalLinkAlt } from "react-icons/fa"
 import { ShareButton } from "@/components/share-button"
 import Link from "next/link"
 import { apiFetch } from "@/lib/api"
@@ -30,10 +30,22 @@ interface Event {
   currentAttendees: number
   averageRating: any
   id: string
+  slug?: string
   title: string
   date: string
   location: string
   image: string
+}
+
+interface SessionMaterial {
+  id: string
+  fileName: string
+  fileUrl: string
+  fileSize: number
+  fileType: string
+  mimeType: string
+  allowDownload: boolean
+  uploadedAt: string
 }
 
 interface Session {
@@ -44,12 +56,13 @@ interface Session {
   endTime: string
   sessionType: string
   youtube: string[]
+  materials?: SessionMaterial[]
   event: {
     id: string
     slug: string
     startDate: string
     endDate: string
-  }
+  } | null
 }
 
 interface Banner {
@@ -113,12 +126,33 @@ export default function SpeakerPage({ params }: SpeakerPageProps) {
         setUpcomingEvents(eventsData.upcoming || [])
         setPastEvents(eventsData.past || [])
 
-        // Fetch sessions with YouTube videos
-        const sessionsRes = await fetch(`/api/speakers/${id}/sessions`)
-        if (sessionsRes.ok) {
-          const sessionsData = await sessionsRes.json()
-          setSessions(sessionsData.sessions || [])
-        } else {
+        // Sessions, videos & materials — direct backend (same origin as profile/events)
+        try {
+          const sessionsPayload = await apiFetch<{
+            success?: boolean
+            sessions?: Session[]
+          }>(`/api/speakers/${id}/sessions`, { auth: false })
+          const raw = sessionsPayload.sessions ?? []
+          const normalized: Session[] = raw.map((s) => {
+            let yt: string[] = []
+            if (Array.isArray(s.youtube)) yt = s.youtube.filter(Boolean).map(String)
+            else if (s.youtube && typeof s.youtube === "string") yt = [s.youtube]
+            return {
+              ...s,
+              youtube: yt.map((u) => (/^https?:\/\//i.test(u) ? u : `https://${u}`)),
+              materials: Array.isArray(s.materials) ? s.materials : [],
+              event: s.event
+                ? {
+                    id: s.event.id,
+                    slug: (s.event as { slug?: string }).slug ?? "",
+                    startDate: s.event.startDate,
+                    endDate: s.event.endDate,
+                  }
+                : null,
+            }
+          })
+          setSessions(normalized)
+        } catch {
           setSessions([])
         }
       } catch (err) {
@@ -448,6 +482,17 @@ export default function SpeakerPage({ params }: SpeakerPageProps) {
                       <p className="text-gray-500 text-xs">No videos available for this session</p>
                     </div>
                   )}
+
+                  {session.event?.id && (
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <Link
+                        href={`/event/${session.event.id}`}
+                        className="text-xs text-blue-600 hover:text-blue-800 inline-flex items-center gap-1 font-medium"
+                      >
+                        View event <FaExternalLinkAlt className="text-[10px]" />
+                      </Link>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}
@@ -457,6 +502,74 @@ export default function SpeakerPage({ params }: SpeakerPageProps) {
             <CardContent className="p-8 text-center">
               <FaYoutube className="text-gray-400 text-3xl mx-auto mb-3" />
               <p className="text-gray-500">No session videos available.</p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* PRESENTATION MATERIALS */}
+      <div className="max-w-6xl mx-auto px-4 pb-12">
+        <h2 className="text-2xl font-bold text-blue-900 mb-2">Presentation Materials</h2>
+        <p className="text-gray-600 text-sm mb-6">Documents and slides from this speaker&apos;s sessions</p>
+        {sessions.some((s) => (s.materials?.length ?? 0) > 0) ? (
+          <div className="space-y-8">
+            {sessions.map((session) =>
+              session.materials && session.materials.length > 0 ? (
+                <Card key={`mat-${session.id}`} className="border border-gray-200 shadow-sm">
+                  <CardContent className="p-5">
+                    <h3 className="font-semibold text-blue-900 mb-1">{session.title}</h3>
+                    <p className="text-xs text-gray-500 mb-4">
+                      {session.sessionType} · {formatDate(session.startTime)}
+                      {session.event?.id && (
+                        <>
+                          {" · "}
+                          <Link
+                            href={`/event/${session.event.id}`}
+                            className="text-blue-600 hover:underline"
+                          >
+                            Event page
+                          </Link>
+                        </>
+                      )}
+                    </p>
+                    <ul className="space-y-2">
+                      {session.materials.map((m) => (
+                        <li
+                          key={m.id}
+                          className="flex flex-wrap items-center justify-between gap-2 py-2 px-3 bg-gray-50 rounded-lg border border-gray-100"
+                        >
+                          <span className="flex items-center gap-2 text-sm text-gray-800 min-w-0">
+                            <FaFileAlt className="text-orange-500 shrink-0" />
+                            <span className="truncate">{m.fileName}</span>
+                            <span className="text-xs text-gray-400 shrink-0">
+                              ({m.fileType})
+                            </span>
+                          </span>
+                          {m.allowDownload !== false && m.fileUrl ? (
+                            <a
+                              href={m.fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-blue-600 hover:text-blue-800 font-medium shrink-0"
+                            >
+                              Download
+                            </a>
+                          ) : (
+                            <span className="text-xs text-gray-400">Preview only</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              ) : null
+            )}
+          </div>
+        ) : (
+          <Card className="border border-gray-200 shadow-sm">
+            <CardContent className="p-8 text-center">
+              <FaFileAlt className="text-gray-400 text-3xl mx-auto mb-3" />
+              <p className="text-gray-500">No presentation materials uploaded yet.</p>
             </CardContent>
           </Card>
         )}
@@ -486,7 +599,11 @@ export default function SpeakerPage({ params }: SpeakerPageProps) {
             {upcomingEvents.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {upcomingEvents.map((e) => (
-                  <div key={e.id} className="border hover:shadow-lg transition-shadow rounded-lg overflow-hidden">
+                  <Link
+                    key={e.id}
+                    href={e.id ? `/event/${e.id}` : "#"}
+                    className="border hover:shadow-lg transition-shadow rounded-lg overflow-hidden block cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
                     <CardContent className="p-0">
                       <Image
                         src={(e.image || "/images/gpex.jpg").trim()}
@@ -507,7 +624,13 @@ export default function SpeakerPage({ params }: SpeakerPageProps) {
                             {e.averageRating?.toFixed(1) || 0} ⭐
                           </span>
 
-                          <div className="flex items-center gap-2">
+                          <div
+                            className="flex items-center gap-2"
+                            onClick={(ev) => {
+                              ev.preventDefault()
+                              ev.stopPropagation()
+                            }}
+                          >
                             <ShareButton 
                               id={e.id} 
                               title={e.title} 
@@ -517,7 +640,7 @@ export default function SpeakerPage({ params }: SpeakerPageProps) {
                         </div>
                       </div>
                     </CardContent>
-                  </div>
+                  </Link>
                 ))}
               </div>
             ) : (
@@ -530,7 +653,11 @@ export default function SpeakerPage({ params }: SpeakerPageProps) {
             {pastEvents.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {pastEvents.map((e) => (
-                  <div key={e.id} className="hover:shadow-lg transition-shadow rounded-lg overflow-hidden">
+                  <Link
+                    key={e.id}
+                    href={e.id ? `/event/${e.id}` : "#"}
+                    className="hover:shadow-lg transition-shadow rounded-lg overflow-hidden block border border-transparent hover:border-gray-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
                     <CardContent className="p-0">
                       <Image
                         src={(e.image || "/images/gpex.jpg").trim()}
@@ -547,7 +674,13 @@ export default function SpeakerPage({ params }: SpeakerPageProps) {
                         <p className="text-xs text-gray-500">{e.location}</p>
 
                         <div className="flex justify-between items-center mt-3">
-                          <div className="flex items-center gap-2">
+                          <div
+                            className="flex items-center gap-2"
+                            onClick={(ev) => {
+                              ev.preventDefault()
+                              ev.stopPropagation()
+                            }}
+                          >
                             <span className="bg-green-100 text-green-800 text-[10px] px-2 py-1 rounded">
                               {e.averageRating?.toFixed(1) || 0} ⭐
                             </span>
@@ -560,7 +693,7 @@ export default function SpeakerPage({ params }: SpeakerPageProps) {
                         </div>
                       </div>
                     </CardContent>
-                  </div>
+                  </Link>
                 ))}
               </div>
             ) : (

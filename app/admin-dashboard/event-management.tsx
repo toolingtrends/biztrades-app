@@ -389,8 +389,16 @@ export function EditEventForm({
   onCancel: () => void
   categories: Category[]
 }) {
+  const toDateOnly = (value?: string | null) => {
+    if (!value) return ""
+    const s = value.toString()
+    return s.includes("T") ? s.split("T")[0] : s
+  }
+
   const [formData, setFormData] = useState<Event>({
     ...event,
+    date: toDateOnly(event.date),
+    endDate: toDateOnly(event.endDate),
     images: event.images || [],
     videos: event.videos || [],
     documents: event.documents || [],
@@ -510,13 +518,14 @@ export function EditEventForm({
         documentUploads
       ])
 
-      const updateData = {
+      // Only send fields that the backend updates; do not send venue/location/organizer (relations stay unchanged)
+      const updateData: Record<string, unknown> = {
         title: formData.title,
         description: formData.description,
-        shortDescription: formData.shortDescription,
+        shortDescription: formData.shortDescription ?? "",
         slug: formData.slug,
-        edition: formData.edition,
-        date: formData.date,
+        edition: formData.edition ?? "",
+        startDate: formData.date,
         endDate: formData.endDate,
         status: formData.status,
         maxCapacity: formData.maxCapacity,
@@ -524,27 +533,21 @@ export function EditEventForm({
         featured: formData.featured,
         vip: formData.vip,
         isPublic: formData.isPublic,
-        category: formData.category,
+        category: Array.isArray(formData.category) ? formData.category : (formData.category ? [formData.category] : []),
         tags: formData.tags || [],
-        eventType: formData.eventType,
+        eventType: Array.isArray(formData.eventType) ? formData.eventType : (formData.eventType ? [formData.eventType] : []),
         timezone: formData.timezone,
-        venue: formData.venue,
-        location: formData.location,
-        organizer: formData.organizer,
-        ticketPrice: formData.ticketPrice,
-        currency: formData.currency,
+        currency: formData.currency ?? "USD",
         images: [...(formData.images || []), ...newImageBase64],
         videos: [...(formData.videos || []), ...newVideoBase64],
         documents: [...(formData.documents || []), ...newDocumentBase64],
-        brochure: formData.brochure,
-        layout: formData.layout,
-        bannerImage: formData.bannerImage,
-        thumbnailImage: formData.thumbnailImage,
+        brochure: formData.brochure ?? "",
+        layout: formData.layout ?? "",
+        bannerImage: formData.bannerImage ?? "",
+        thumbnailImage: formData.thumbnailImage ?? "",
         isVerified: formData.isVerified,
-        verifiedBadgeImage: formData.verifiedBadgeImage,
+        verifiedBadgeImage: formData.verifiedBadgeImage ?? null,
       }
-
-      console.log("Sending update data:", updateData)
 
       const result = await apiFetch<{ event?: any; data?: any }>(`/api/admin/events/${event.id}`, {
         method: "PATCH",

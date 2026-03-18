@@ -288,12 +288,23 @@ export default function EventPageContent({ event, session: _session, router, toa
     }
   }
 
-  // Get address for map - same implementation as venue page
+  // Get address for map / directions with robust fallbacks
   const getMapAddress = () => {
     if (event?.venue?.location?.coordinates?.lat && event?.venue?.location?.coordinates?.lng) {
       return `${event.venue.location.coordinates.lat},${event.venue.location.coordinates.lng}`
     }
-    return encodeURIComponent(event?.venue?.venueAddress || event?.location?.address || "")
+
+    // Fallbacks similar to events-page-content
+    let address = event?.venue?.venueAddress || event?.location?.address || event?.address || ""
+    let city =
+      event?.venue?.venueCity || event?.location?.city || event?.city || ""
+    let country =
+      event?.venue?.venueCountry || event?.location?.country || event?.country || ""
+
+    const parts = [address, city, country].filter(Boolean)
+    const full = parts.join(", ")
+
+    return encodeURIComponent(full || address || city || country || "India")
   }
 
   const formatDate = (dateString: string) => {
@@ -366,7 +377,6 @@ export default function EventPageContent({ event, session: _session, router, toa
                   size="sm"
                   className="flex items-center gap-2 text-blue-600 hover:text-blue-700"
                   onClick={() => {
-                    const query = encodeURIComponent(event.venueAddress || "Location")
                     const address = getMapAddress()
                     window.open(
                       `https://www.google.com/maps/dir/?api=1&destination=${address}`,

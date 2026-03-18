@@ -171,7 +171,9 @@ export function useEvents() {
   }, [])
 
   const handleSaveEvent = useCallback((updatedEvent: Event) => {
-    setEvents((prev) => prev.map((e) => (e.id === updatedEvent.id ? updatedEvent : e)))
+    setEvents((prev) =>
+      prev.map((e) => (e.id === updatedEvent.id ? normalizeEvent(updatedEvent as any) : e))
+    )
     setIsEditing(false)
     setSelectedEvent(null)
     toast({ title: "Event Updated", description: "Event details have been saved successfully" })

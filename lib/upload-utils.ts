@@ -1,20 +1,26 @@
+import { apiFetch } from "./api"
+
 export async function uploadVenueImages(files: File[]): Promise<string[]> {
   const uploadPromises = files.map(async (file) => {
     const formData = new FormData()
-    formData.append('file', file)
-    formData.append('folder', 'venues')
+    formData.append("file", file)
+    formData.append("folder", "venues")
+    // images only; backend upload controller enforces image MIME types
+    formData.append("type", "image")
 
-    const response = await fetch('/api/admin/upload', {
-      method: 'POST',
-      body: formData,
-    })
+    const result = await apiFetch<{ success?: boolean; secure_url?: string; error?: string }>(
+      "/api/admin/upload",
+      {
+        method: "POST",
+        body: formData,
+        auth: true,
+      }
+    )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Upload failed')
+    if ((result as any)?.success === false || !result.secure_url) {
+      throw new Error((result as any)?.error || "Upload failed")
     }
 
-    const result = await response.json()
     return result.secure_url
   })
 
@@ -23,40 +29,46 @@ export async function uploadVenueImages(files: File[]): Promise<string[]> {
 
 export async function uploadVenueLogo(file: File): Promise<string> {
   const formData = new FormData()
-  formData.append('file', file)
-  formData.append('folder', 'venues/logos')
+  formData.append("file", file)
+  formData.append("folder", "venues/logos")
+  formData.append("type", "image")
 
-  const response = await fetch('/api/admin/upload', {
-    method: 'POST',
-    body: formData,
-  })
+  const result = await apiFetch<{ success?: boolean; secure_url?: string; error?: string }>(
+    "/api/admin/upload",
+    {
+      method: "POST",
+      body: formData,
+      auth: true,
+    }
+  )
 
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || 'Upload failed')
+  if ((result as any)?.success === false || !result.secure_url) {
+    throw new Error((result as any)?.error || "Upload failed")
   }
 
-  const result = await response.json()
   return result.secure_url
 }
 
 export async function uploadVenueDocuments(files: File[]): Promise<string[]> {
   const uploadPromises = files.map(async (file) => {
     const formData = new FormData()
-    formData.append('file', file)
-    formData.append('folder', 'venues/documents')
+    formData.append("file", file)
+    formData.append("folder", "venues/documents")
+    formData.append("type", "document")
 
-    const response = await fetch('/api/admin/upload', {
-      method: 'POST',
-      body: formData,
-    })
+    const result = await apiFetch<{ success?: boolean; secure_url?: string; error?: string }>(
+      "/api/admin/upload",
+      {
+        method: "POST",
+        body: formData,
+        auth: true,
+      }
+    )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Upload failed')
+    if ((result as any)?.success === false || !result.secure_url) {
+      throw new Error((result as any)?.error || "Upload failed")
     }
 
-    const result = await response.json()
     return result.secure_url
   })
 

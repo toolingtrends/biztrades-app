@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import CloudinaryUpload from "@/components/cloudinary-upload"
 import { apiFetch } from "@/lib/api"
+import adminApi from "@/lib/admin-api"
 
 interface EventCategory {
   id: string
@@ -62,34 +63,27 @@ export default function EventCategories() {
     
     try {
       const url = editingCategory 
-        ? `/api/admin/event-categories/${editingCategory.id}`
-        : "/api/admin/event-categories"
+        ? `/event-categories/${editingCategory.id}`
+        : "/event-categories"
       
       const method = editingCategory ? "PUT" : "POST"
-      
-      const response = await fetch(url, {
+
+      await adminApi(url, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
+        auth: true,
+        body: formData,
       })
 
-      if (response.ok) {
-        setShowForm(false)
-        setEditingCategory(null)
-        setFormData({
-          name: "",
-       
-          icon: "",
-          color: "#3B82F6",
-          isActive: true
-        })
-        fetchCategories()
-      } else {
-        const error = await response.json()
-        alert(error.error || "Failed to save category")
-      }
+      setShowForm(false)
+      setEditingCategory(null)
+      setFormData({
+        name: "",
+     
+        icon: "",
+        color: "#3B82F6",
+        isActive: true
+      })
+      fetchCategories()
     } catch (error) {
       console.error("Error saving category:", error)
       alert("Failed to save category")
@@ -114,16 +108,11 @@ export default function EventCategories() {
     }
 
     try {
-      const response = await fetch(`/api/admin/event-categories/${categoryId}`, {
+      await adminApi(`/event-categories/${categoryId}`, {
         method: "DELETE",
+        auth: true,
       })
-
-      if (response.ok) {
-        fetchCategories()
-      } else {
-        const error = await response.json()
-        alert(error.error || "Failed to delete category")
-      }
+      fetchCategories()
     } catch (error) {
       console.error("Error deleting category:", error)
       alert("Failed to delete category")
