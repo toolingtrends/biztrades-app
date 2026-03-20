@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   DropdownMenu,
@@ -103,6 +104,17 @@ interface Category {
   color?: string
   isActive: boolean
   eventCount?: number
+}
+
+function normalizeEventCategoryNames(event: Event): string[] {
+  const raw = (event as unknown as { category?: string | string[] }).category
+  if (Array.isArray(raw)) {
+    return raw.map((x) => String(x).trim()).filter(Boolean)
+  }
+  if (typeof raw === "string" && raw.trim()) {
+    return [raw.trim()]
+  }
+  return []
 }
 
 // Verification Dialog Component
@@ -418,7 +430,18 @@ export function EditEventForm({
     verifiedBadgeImage: event.verifiedBadgeImage || null,
     verifiedAt: event.verifiedAt || null,
     verifiedBy: event.verifiedBy || null,
+    category: normalizeEventCategoryNames(event)[0] ?? "",
   })
+
+  const [selectedCategoryNames, setSelectedCategoryNames] = useState<string[]>(() =>
+    normalizeEventCategoryNames(event)
+  )
+
+  useEffect(() => {
+    setSelectedCategoryNames(normalizeEventCategoryNames(event))
+  }, [event.id])
+
+  const activeCategories = categories.filter((c) => c.isActive)
 
   const [uploading, setUploading] = useState(false)
   const [newImages, setNewImages] = useState<File[]>([])
@@ -533,7 +556,7 @@ export function EditEventForm({
         featured: formData.featured,
         vip: formData.vip,
         isPublic: formData.isPublic,
-        category: Array.isArray(formData.category) ? formData.category : (formData.category ? [formData.category] : []),
+        category: selectedCategoryNames,
         tags: formData.tags || [],
         eventType: Array.isArray(formData.eventType) ? formData.eventType : (formData.eventType ? [formData.eventType] : []),
         timezone: formData.timezone,
@@ -738,28 +761,67 @@ export function EditEventForm({
 
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Event Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="category">Category *</Label>
-                  <Select
-                    value={formData.category}
-                    onValueChange={(value) => setFormData({ ...formData, category: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories
-                        .filter(category => category.isActive)
-                        .map((category) => (
-                          <SelectItem key={category.id} value={category.name}>
-                            {category.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
 
+              <div className="rounded-xl border border-gray-200 bg-gradient-to-b from-slate-50/80 to-white p-5 shadow-sm">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <Label className="text-base font-semibold text-gray-900">Categories</Label>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Select one or more categories from your admin list. Changes apply on save.
+                    </p>
+                  </div>
+                  {selectedCategoryNames.length > 0 && (
+                    <span className="text-xs font-medium text-blue-700 bg-blue-50 border border-blue-100 rounded-full px-3 py-1 shrink-0">
+                      {selectedCategoryNames.length} selected
+                    </span>
+                  )}
+                </div>
+                {activeCategories.length === 0 ? (
+                  <p className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg p-3 mt-4">
+                    No active event categories. Add them under <strong>Events → Event Categories</strong>.
+                  </p>
+                ) : (
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                    {activeCategories.map((cat) => {
+                      const checked = selectedCategoryNames.includes(cat.name)
+                      return (
+                        <label
+                          key={cat.id}
+                          className={[
+                            "flex items-center gap-3 rounded-lg border px-3.5 py-3 cursor-pointer transition-all",
+                            checked
+                              ? "border-blue-500 bg-blue-50/90 shadow-sm ring-2 ring-blue-100"
+                              : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50/80",
+                          ].join(" ")}
+                        >
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(v) => {
+                              const on = v === true
+                              if (on && !selectedCategoryNames.includes(cat.name)) {
+                                setSelectedCategoryNames((prev) => [...prev, cat.name])
+                              } else if (!on) {
+                                setSelectedCategoryNames((prev) => prev.filter((n) => n !== cat.name))
+                              }
+                            }}
+                            className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                          />
+                          <span
+                            className="h-3 w-3 rounded-full shrink-0 border border-white shadow-sm"
+                            style={{ backgroundColor: cat.color || "#3B82F6" }}
+                            title={cat.name}
+                          />
+                          <span className="text-sm font-medium text-gray-800 leading-snug flex-1 min-w-0">
+                            {cat.name}
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="eventType">Event Type</Label>
                   <Select

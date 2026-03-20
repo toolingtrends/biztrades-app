@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { apiFetch } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, Building, Mail, Phone, MapPin, Users, Star, CheckCircle2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
@@ -58,12 +59,25 @@ interface AddVenueProps {
   selectedVenueId?: string  // Add this prop
 }
 
+type DbCountryRow = {
+  id: string
+  name: string
+  code: string
+  cities: { id: string; name: string }[]
+}
+
+const LOCATION_NONE = "__none__"
+
 export default function AddVenue({ organizerId, onVenueChange, selectedVenueId }: AddVenueProps) {
   const [venues, setVenues] = useState<Venue[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState("existing")
   const { toast } = useToast()
+  const [locationLoading, setLocationLoading] = useState(false)
+  const [dbCountries, setDbCountries] = useState<DbCountryRow[]>([])
+  const [countryPick, setCountryPick] = useState<string>(LOCATION_NONE)
+  const [cityPick, setCityPick] = useState<string>(LOCATION_NONE)
 
   // New venue form state
   const [newVenue, setNewVenue] = useState({
@@ -106,7 +120,37 @@ export default function AddVenue({ organizerId, onVenueChange, selectedVenueId }
 
   useEffect(() => {
     fetchVenues()
+    fetchCountries()
   }, [])
+
+  const fetchCountries = async () => {
+    try {
+      setLocationLoading(true)
+      const res = await apiFetch<{ success?: boolean; data?: DbCountryRow[] }>(
+        "/api/location/countries",
+        { auth: false },
+      )
+      setDbCountries(res?.success && Array.isArray(res.data) ? res.data : [])
+    } catch (error) {
+      console.error("Error fetching location data:", error)
+      setDbCountries([])
+    } finally {
+      setLocationLoading(false)
+    }
+  }
+
+  const resolvedCountryId = useMemo(() => {
+    if (countryPick !== LOCATION_NONE) return countryPick
+    const typed = newVenue.venuecountry.trim().toLowerCase()
+    if (!typed) return ""
+    const row = dbCountries.find((c) => c.name.trim().toLowerCase() === typed)
+    return row?.id ?? ""
+  }, [countryPick, newVenue.venuecountry, dbCountries])
+
+  const cityOptions = useMemo(() => {
+    if (!resolvedCountryId) return []
+    return dbCountries.find((c) => c.id === resolvedCountryId)?.cities ?? []
+  }, [resolvedCountryId, dbCountries])
 
   const fetchVenues = async () => {
     try {
@@ -286,6 +330,8 @@ export default function AddVenue({ organizerId, onVenueChange, selectedVenueId }
         venuepostalCode: "",
         amenities: [],
       })
+      setCountryPick(LOCATION_NONE)
+      setCityPick(LOCATION_NONE)
       setMeetingSpaces([
         { name: "", capacity: 0, area: 0, hourlyRate: 0, features: [] },
       ])
@@ -548,12 +594,82 @@ export default function AddVenue({ organizerId, onVenueChange, selectedVenueId }
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="md:col-span-2 lg:col-span-1">
+                      <Label>Choose Your Country</Label>
+                      <Select
+                        disabled={locationLoading}
+                        value={countryPick}
+                        onValueChange={(value) => {
+                          setCountryPick(value)
+                          if (value === LOCATION_NONE) return
+                          const row = dbCountries.find((c) => c.id === value)
+                          if (row) {
+                            setNewVenue((prev) => ({
+                              ...prev,
+                              venuecountry: row.name,
+                              venuecity: "",
+                            }))
+                            setCityPick(LOCATION_NONE)
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={locationLoading ? "Loading..." : "Choose your country"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={LOCATION_NONE}>-- None --</SelectItem>
+                          {dbCountries.map((country) => (
+                            <SelectItem key={country.id} value={country.id}>
+                              {country.name} ({country.code})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="md:col-span-2 lg:col-span-1">
+                      <Label>Choose Your City</Label>
+                      <Select
+                        disabled={locationLoading || !resolvedCountryId}
+                        value={cityPick}
+                        onValueChange={(value) => {
+                          setCityPick(value)
+                          if (value === LOCATION_NONE) return
+                          const city = cityOptions.find((c) => c.id === value)
+                          if (city) setNewVenue((prev) => ({ ...prev, venuecity: city.name }))
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={
+                              !resolvedCountryId
+                                ? "Pick/Type country first"
+                                : locationLoading
+                                  ? "Loading..."
+                                  : "Choose your city"
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={LOCATION_NONE}>-- None --</SelectItem>
+                          {cityOptions.map((city) => (
+                            <SelectItem key={city.id} value={city.id}>
+                              {city.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                     <div>
                       <Label htmlFor="city">City</Label>
                       <Input
                         id="city"
                         value={newVenue.venuecity}
-                        onChange={(e) => setNewVenue({ ...newVenue, venuecity: e.target.value })}
+                        onChange={(e) => {
+                          setCityPick(LOCATION_NONE)
+                          setNewVenue({ ...newVenue, venuecity: e.target.value })
+                        }}
                         placeholder="San Francisco"
                       />
                     </div>
@@ -573,7 +689,11 @@ export default function AddVenue({ organizerId, onVenueChange, selectedVenueId }
                       <Input
                         id="country"
                         value={newVenue.venuecountry}
-                        onChange={(e) => setNewVenue({ ...newVenue, venuecountry: e.target.value })}
+                        onChange={(e) => {
+                          setCountryPick(LOCATION_NONE)
+                          setCityPick(LOCATION_NONE)
+                          setNewVenue({ ...newVenue, venuecountry: e.target.value })
+                        }}
                         placeholder="United States"
                       />
                     </div>

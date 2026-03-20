@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { apiFetch } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -22,6 +22,16 @@ interface Venue {
   amenities: string[]
 }
 
+type DbCountryRow = {
+  id: string
+  name: string
+  code: string
+  flag: string | null
+  cities: { id: string; name: string; image: string | null }[]
+}
+
+const LOCATION_NONE = "__none__"
+
 interface SelectVenueProps {
   selectedVenueId: string
   onVenueChange: (venueData: {
@@ -39,6 +49,10 @@ export function SelectVenue({ selectedVenueId, onVenueChange }: SelectVenueProps
   const [searchTerm, setSearchTerm] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [locationLoading, setLocationLoading] = useState(false)
+  const [dbCountries, setDbCountries] = useState<DbCountryRow[]>([])
+  const [countryPick, setCountryPick] = useState<string>(LOCATION_NONE)
+  const [cityPick, setCityPick] = useState<string>(LOCATION_NONE)
   const [newVenue, setNewVenue] = useState({
     venueName: "",
     venueAddress: "",
@@ -51,7 +65,24 @@ export function SelectVenue({ selectedVenueId, onVenueChange }: SelectVenueProps
 
   useEffect(() => {
     fetchVenues()
+    fetchCountries()
   }, [])
+
+  const fetchCountries = async () => {
+    try {
+      setLocationLoading(true)
+      const res = await apiFetch<{ success?: boolean; data?: DbCountryRow[] }>(
+        "/api/location/countries",
+        { auth: false }
+      )
+      setDbCountries(res?.success && Array.isArray(res.data) ? res.data : [])
+    } catch (error) {
+      console.error("Error fetching countries/cities:", error)
+      setDbCountries([])
+    } finally {
+      setLocationLoading(false)
+    }
+  }
 
   const fetchVenues = async () => {
     try {
@@ -107,6 +138,7 @@ export function SelectVenue({ selectedVenueId, onVenueChange }: SelectVenueProps
 
       if (response.ok) {
         const data = await response.json()
+        const user = data?.data ?? data?.user ?? data
         onVenueChange({
           venueId: user.id,
           venueName: user.venueName ?? "",
@@ -116,6 +148,8 @@ export function SelectVenue({ selectedVenueId, onVenueChange }: SelectVenueProps
           country: user.venueCountry
         })
         setShowCreateForm(false)
+        setCountryPick(LOCATION_NONE)
+        setCityPick(LOCATION_NONE)
         setNewVenue({
           venueName: "",
           venueAddress: "",
@@ -136,6 +170,19 @@ export function SelectVenue({ selectedVenueId, onVenueChange }: SelectVenueProps
   }
 
   const selectedVenue = venues.find(venue => venue.id === selectedVenueId)
+
+  const resolvedCountryId = useMemo(() => {
+    if (countryPick !== LOCATION_NONE) return countryPick
+    const typed = newVenue.venueCountry.trim().toLowerCase()
+    if (!typed) return ""
+    const row = dbCountries.find((c) => c.name.trim().toLowerCase() === typed)
+    return row?.id ?? ""
+  }, [countryPick, newVenue.venueCountry, dbCountries])
+
+  const cityOptions = useMemo(() => {
+    if (!resolvedCountryId) return []
+    return dbCountries.find((c) => c.id === resolvedCountryId)?.cities ?? []
+  }, [resolvedCountryId, dbCountries])
 
   return (
     <Card>
@@ -257,11 +304,81 @@ export function SelectVenue({ selectedVenueId, onVenueChange }: SelectVenueProps
                 />
               </div>
               <div>
+                <Label className="mb-2 block">Choose Your Country</Label>
+                <Select
+                  disabled={locationLoading}
+                  value={countryPick}
+                  onValueChange={(value) => {
+                    setCountryPick(value)
+                    if (value === LOCATION_NONE) return
+                    const row = dbCountries.find((x) => x.id === value)
+                    if (row) {
+                      setNewVenue((prev) => ({
+                        ...prev,
+                        venueCountry: row.name,
+                        venueCity: "",
+                      }))
+                      setCityPick(LOCATION_NONE)
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={locationLoading ? "Loading..." : "Choose your country"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={LOCATION_NONE}>-- None --</SelectItem>
+                    {dbCountries.map((country) => (
+                      <SelectItem key={country.id} value={country.id}>
+                        {country.name} ({country.code})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="mb-2 block">Choose Your City</Label>
+                <Select
+                  disabled={locationLoading || !resolvedCountryId}
+                  value={cityPick}
+                  onValueChange={(value) => {
+                    setCityPick(value)
+                    if (value === LOCATION_NONE) return
+                    const city = cityOptions.find((c) => c.id === value)
+                    if (city) {
+                      setNewVenue((prev) => ({ ...prev, venueCity: city.name }))
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        !resolvedCountryId
+                          ? "Pick/Type country first"
+                          : locationLoading
+                          ? "Loading..."
+                          : "Choose your city"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={LOCATION_NONE}>-- None --</SelectItem>
+                    {cityOptions.map((city) => (
+                      <SelectItem key={city.id} value={city.id}>
+                        {city.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <Label htmlFor="venueCity">City *</Label>
                 <Input
                   id="venueCity"
                   value={newVenue.venueCity}
-                  onChange={(e) => setNewVenue(prev => ({ ...prev, venueCity: e.target.value }))}
+                  onChange={(e) => {
+                    setCityPick(LOCATION_NONE)
+                    setNewVenue(prev => ({ ...prev, venueCity: e.target.value }))
+                  }}
                   placeholder="New York"
                 />
               </div>
@@ -279,7 +396,11 @@ export function SelectVenue({ selectedVenueId, onVenueChange }: SelectVenueProps
                 <Input
                   id="venueCountry"
                   value={newVenue.venueCountry}
-                  onChange={(e) => setNewVenue(prev => ({ ...prev, venueCountry: e.target.value }))}
+                  onChange={(e) => {
+                    setCountryPick(LOCATION_NONE)
+                    setCityPick(LOCATION_NONE)
+                    setNewVenue(prev => ({ ...prev, venueCountry: e.target.value }))
+                  }}
                   placeholder="United States"
                 />
               </div>

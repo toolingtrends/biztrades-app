@@ -127,6 +127,58 @@ export default function VenueManagement() {
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState("all")
   const [expandedVenues, setExpandedVenues] = useState<Set<string>>(new Set())
+  const [detailLoading, setDetailLoading] = useState(false)
+
+  const mapVenueFromApi = (v: any): Venue => ({
+    id: v.id,
+    venueName: v.venueName ?? v.name ?? "",
+    logo: v.logo ?? "",
+    contactPerson:
+      v.contactPerson ??
+      v.name ??
+      `${v.firstName ?? ""} ${v.lastName ?? ""}`.trim() ??
+      "",
+    email: v.email ?? "",
+    mobile: v.phone ?? v.mobile ?? "",
+    address: v.venueAddress ?? v.address ?? "",
+    city: v.venueCity ?? v.city ?? "",
+    state: v.venueState ?? v.state ?? "",
+    country: v.venueCountry ?? v.country ?? "",
+    website: v.website ?? "",
+    description: v.description ?? "",
+    maxCapacity: Number(v.maxCapacity ?? 0),
+    totalHalls: Number(v.totalHalls ?? 0),
+    totalEvents: Number(v.totalEvents ?? 0),
+    activeBookings: Number(v.activeBookings ?? 0),
+    averageRating: Number(v.averageRating ?? 0),
+    totalReviews: Number(v.totalReviews ?? 0),
+    amenities: Array.isArray(v.amenities) ? v.amenities : [],
+    meetingSpaces: Array.isArray(v.meetingSpaces) ? v.meetingSpaces : [],
+    isVerified: Boolean(v.isVerified),
+    isActive: v.isActive ?? true,
+    venueImages: Array.isArray(v.venueImages) ? v.venueImages : [],
+    status: v.status ?? (v.isActive ? "active" : "suspended"),
+    createdAt: v.createdAt,
+    updatedAt: v.updatedAt,
+    rejectionReason: v.rejectionReason,
+    events: Array.isArray(v.events) ? v.events : [],
+  })
+
+  const fetchVenueById = async (venueId: string) => {
+    setDetailLoading(true)
+    try {
+      const result = await adminApi<{ success?: boolean; data?: any }>(`/venues/${venueId}`)
+      const raw = result?.data ?? (result as any)
+      if (!raw || !raw.id) return null
+      return mapVenueFromApi(raw)
+    } catch (error) {
+      console.error("Error fetching venue details:", error)
+      toast.error("Failed to load venue details")
+      return null
+    } finally {
+      setDetailLoading(false)
+    }
+  }
 
   const fetchVenues = async () => {
     try {
@@ -134,35 +186,7 @@ export default function VenueManagement() {
       const result = await adminApi<{ success?: boolean; data?: any[]; venues?: any[] }>("/venues")
       const list = result?.data ?? (result as any)?.venues ?? []
       const raw = Array.isArray(list) ? list : []
-      setVenues(
-        raw.map((v: any) => ({
-          id: v.id,
-          venueName: v.venueName ?? v.name ?? "",
-          logo: "",
-          contactPerson: v.name ?? `${v.firstName ?? ""} ${v.lastName ?? ""}`.trim() ?? "",
-          email: v.email ?? "",
-          mobile: v.phone ?? "",
-          address: v.venueAddress ?? "",
-          city: v.venueCity ?? "",
-          state: v.venueState ?? "",
-          country: v.venueCountry ?? "",
-          website: "",
-          description: "",
-          maxCapacity: v.maxCapacity ?? 0,
-          totalHalls: 0,
-          totalEvents: 0,
-          activeBookings: 0,
-          averageRating: 0,
-          totalReviews: 0,
-          amenities: [],
-          meetingSpaces: [],
-          isVerified: false,
-          isActive: v.isActive ?? true,
-          venueImages: [],
-          status: v.isActive ? "active" : "suspended",
-          events: [],
-        }))
-      )
+      setVenues(raw.map((v: any) => mapVenueFromApi(v)))
     } catch (error) {
       console.error("Error fetching venues:", error)
       toast.error("Failed to load venues")
@@ -521,12 +545,14 @@ export default function VenueManagement() {
                 venues={filteredVenues}
                 expandedVenues={expandedVenues}
                 onToggleEvents={toggleVenueEvents}
-                onView={(venue) => {
-                  setSelectedVenue(venue)
+                onView={async (venue) => {
+                  const detailed = await fetchVenueById(venue.id)
+                  setSelectedVenue(detailed ?? venue)
                   setIsViewDialogOpen(true)
                 }}
-                onEdit={(venue) => {
-                  setSelectedVenue(venue)
+                onEdit={async (venue) => {
+                  const detailed = await fetchVenueById(venue.id)
+                  setSelectedVenue(detailed ?? venue)
                   setIsEditDialogOpen(true)
                 }}
                 onStatusChange={handleStatusChange}
@@ -602,12 +628,14 @@ export default function VenueManagement() {
                 venues={venues.filter(v => v.status === "active")}
                 expandedVenues={expandedVenues}
                 onToggleEvents={toggleVenueEvents}
-                onView={(venue) => {
-                  setSelectedVenue(venue)
+                onView={async (venue) => {
+                  const detailed = await fetchVenueById(venue.id)
+                  setSelectedVenue(detailed ?? venue)
                   setIsViewDialogOpen(true)
                 }}
-                onEdit={(venue) => {
-                  setSelectedVenue(venue)
+                onEdit={async (venue) => {
+                  const detailed = await fetchVenueById(venue.id)
+                  setSelectedVenue(detailed ?? venue)
                   setIsEditDialogOpen(true)
                 }}
                 onStatusChange={handleStatusChange}
@@ -626,6 +654,7 @@ export default function VenueManagement() {
         isOpen={isViewDialogOpen}
         onClose={() => setIsViewDialogOpen(false)}
         venue={selectedVenue}
+        loading={detailLoading}
         getStatusBadge={getStatusBadge}
         getEventStatusBadge={getEventStatusBadge}
       />
@@ -739,8 +768,8 @@ function VenuesList({
                 {/* Venue Details */}
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
-                    <div className="flex items-start gap-2">
-                      <h3 className="font-semibold text-lg text-gray-900 truncate">
+                    <div className="flex items-start gap-2 min-w-0">
+                      <h3 className="font-semibold text-lg text-gray-900 truncate max-w-[18rem]">
                         {venue.venueName}
                       </h3>
                       {venue.isVerified && (
@@ -755,7 +784,7 @@ function VenuesList({
                   <div className="space-y-2 mb-3">
                     <div className="flex items-center text-sm text-gray-600">
                       <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
-                      <span className="truncate">{venue.city}, {venue.state}, {venue.country}</span>
+                      <span className="truncate">{[venue.city, venue.state, venue.country].filter(Boolean).join(", ") || "-"}</span>
                     </div>
                     <div className="flex items-center text-sm text-gray-600">
                       <Users className="w-4 h-4 mr-2 flex-shrink-0" />
@@ -804,9 +833,9 @@ function VenuesList({
                           <Badge 
                             key={event.id} 
                             variant="outline" 
-                            className="text-xs bg-blue-50 border-blue-200 text-blue-700"
+                            className="text-xs bg-blue-50 border-blue-200 text-blue-700 max-w-full"
                           >
-                            {event.title}
+                            <span className="truncate inline-block max-w-[14rem]">{event.title}</span>
                           </Badge>
                         ))}
                       </div>
@@ -949,8 +978,8 @@ function PendingVenuesList({
                 {/* Venue Details */}
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
-                    <div className="flex items-start gap-2">
-                      <h3 className="font-semibold text-lg text-gray-900 truncate">
+                    <div className="flex items-start gap-2 min-w-0">
+                      <h3 className="font-semibold text-lg text-gray-900 truncate max-w-[18rem]">
                         {venue.venueName}
                       </h3>
                     </div>
@@ -962,7 +991,7 @@ function PendingVenuesList({
                   <div className="space-y-2 mb-3">
                     <div className="flex items-center text-sm text-gray-600">
                       <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
-                      <span className="truncate">{venue.city}, {venue.state}, {venue.country}</span>
+                      <span className="truncate">{[venue.city, venue.state, venue.country].filter(Boolean).join(", ") || "-"}</span>
                     </div>
                     <div className="flex items-center text-sm text-gray-600">
                       <Mail className="w-4 h-4 mr-2 flex-shrink-0" />
@@ -1011,9 +1040,9 @@ function PendingVenuesList({
                           <Badge 
                             key={event.id} 
                             variant="outline" 
-                            className="text-xs bg-yellow-50 border-yellow-200 text-yellow-700"
+                            className="text-xs bg-yellow-50 border-yellow-200 text-yellow-700 max-w-full"
                           >
-                            {event.title}
+                            <span className="truncate inline-block max-w-[14rem]">{event.title}</span>
                           </Badge>
                         ))}
                       </div>
@@ -1090,12 +1119,14 @@ function ViewVenueDialog({
   isOpen, 
   onClose, 
   venue, 
+  loading,
   getStatusBadge,
   getEventStatusBadge
 }: {
   isOpen: boolean
   onClose: () => void
   venue: Venue | null
+  loading: boolean
   getStatusBadge: (status: string) => JSX.Element
   getEventStatusBadge: (status: string) => JSX.Element
 }) {
@@ -1103,7 +1134,7 @@ function ViewVenueDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             {venue.venueName}
@@ -1112,8 +1143,12 @@ function ViewVenueDialog({
           <DialogDescription>Detailed venue information and statistics</DialogDescription>
         </DialogHeader>
 
+        {loading ? (
+          <div className="py-8 text-center text-sm text-gray-500">Loading venue details...</div>
+        ) : null}
+
         <Tabs defaultValue="details" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mb-6 gap-1">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mb-6 gap-1 h-auto">
             <TabsTrigger value="details" className="text-xs md:text-sm whitespace-nowrap px-2">Details</TabsTrigger>
             <TabsTrigger value="contact" className="text-xs md:text-sm whitespace-nowrap px-2">Contact</TabsTrigger>
             <TabsTrigger value="stats" className="text-xs md:text-sm whitespace-nowrap px-2">Statistics</TabsTrigger>
@@ -1132,11 +1167,11 @@ function ViewVenueDialog({
                 </div>
                 <div>
                   <Label className="text-sm font-medium text-gray-700">Location</Label>
-                  <p className="text-sm text-gray-600 mt-1">{venue.city}, {venue.state}, {venue.country}</p>
+                  <p className="text-sm text-gray-600 mt-1 break-words">{[venue.city, venue.state, venue.country].filter(Boolean).join(", ") || "-"}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium text-gray-700">Address</Label>
-                  <p className="text-sm text-gray-600 mt-1">{venue.address}</p>
+                  <p className="text-sm text-gray-600 mt-1 break-words">{venue.address || "-"}</p>
                 </div>
               </div>
               <div className="space-y-4">
@@ -1156,7 +1191,7 @@ function ViewVenueDialog({
             </div>
             <div>
               <Label className="text-sm font-medium text-gray-700">Description</Label>
-              <p className="text-sm text-gray-600 mt-2 leading-relaxed">{venue.description}</p>
+              <p className="text-sm text-gray-600 mt-2 leading-relaxed break-words">{venue.description || "-"}</p>
             </div>
           </TabsContent>
 
@@ -1167,14 +1202,14 @@ function ViewVenueDialog({
                   <Phone className="w-5 h-5 text-blue-600" />
                   <div>
                     <Label className="text-sm font-medium text-gray-700">Mobile</Label>
-                    <p className="text-sm text-gray-600">{venue.mobile}</p>
+                    <p className="text-sm text-gray-600 break-all">{venue.mobile || "-"}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                   <Mail className="w-5 h-5 text-blue-600" />
                   <div>
                     <Label className="text-sm font-medium text-gray-700">Email</Label>
-                    <p className="text-sm text-gray-600">{venue.email}</p>
+                    <p className="text-sm text-gray-600 break-all">{venue.email || "-"}</p>
                   </div>
                 </div>
               </div>
@@ -1229,6 +1264,7 @@ function ViewVenueDialog({
             <div>
               <Label className="text-sm font-medium text-gray-700 mb-3">Amenities</Label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {venue.amenities.length === 0 ? <p className="text-sm text-gray-500">No amenities added.</p> : null}
                 {venue.amenities.map((amenity, index) => (
                   <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
                     <CheckCircle className="w-4 h-4 text-green-500" />
@@ -1241,6 +1277,7 @@ function ViewVenueDialog({
             <div>
               <Label className="text-sm font-medium text-gray-700 mb-3">Meeting Spaces</Label>
               <div className="space-y-3">
+                {venue.meetingSpaces.length === 0 ? <p className="text-sm text-gray-500">No spaces configured.</p> : null}
                 {venue.meetingSpaces.map((space) => (
                   <Card key={space.id} className="border">
                     <CardContent className="p-4">
@@ -1415,6 +1452,47 @@ function EditVenueDialog({
                 onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
               />
             </div>
+            <div className="md:col-span-2 space-y-2">
+              <Label htmlFor="edit-address">Address</Label>
+              <Textarea
+                id="edit-address"
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                rows={2}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-city">City</Label>
+              <Input
+                id="edit-city"
+                value={formData.city}
+                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-state">State</Label>
+              <Input
+                id="edit-state"
+                value={formData.state}
+                onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-country">Country</Label>
+              <Input
+                id="edit-country"
+                value={formData.country}
+                onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-website">Website</Label>
+              <Input
+                id="edit-website"
+                value={formData.website}
+                onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="edit-capacity">Capacity</Label>
               <Input
@@ -1422,6 +1500,15 @@ function EditVenueDialog({
                 type="number"
                 value={formData.maxCapacity}
                 onChange={(e) => setFormData({ ...formData, maxCapacity: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-totalHalls">Total Halls</Label>
+              <Input
+                id="edit-totalHalls"
+                type="number"
+                value={formData.totalHalls}
+                onChange={(e) => setFormData({ ...formData, totalHalls: e.target.value })}
               />
             </div>
             <div className="space-y-2">
@@ -1436,6 +1523,15 @@ function EditVenueDialog({
                   <SelectItem value="suspended">Suspended</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="md:col-span-2 space-y-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <Textarea
+                id="edit-description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={3}
+              />
             </div>
             <div className="md:col-span-2 flex items-center space-x-2">
               <Switch

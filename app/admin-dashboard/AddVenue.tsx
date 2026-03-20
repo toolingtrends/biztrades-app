@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -27,7 +27,15 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { adminApi } from "@/lib/admin-api"
+import { apiFetch } from "@/lib/api"
 import { uploadVenueImages, uploadVenueLogo, uploadVenueDocuments } from "@/lib/upload-utils"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface VenueFormData {
   // Venue Profile
@@ -73,6 +81,16 @@ interface VenueFormData {
   status: "active" | "suspended"
 }
 
+type DbCountryRow = {
+  id: string
+  name: string
+  code: string
+  flag: string | null
+  cities: { id: string; name: string; image: string | null }[]
+}
+
+const LOCATION_NONE = "__none__"
+
 export default function AddVenueComponent() {
   const [activeTab, setActiveTab] = useState("profile")
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -107,6 +125,47 @@ export default function AddVenueComponent() {
 
   const [newAmenity, setNewAmenity] = useState("")
   const [newCertification, setNewCertification] = useState("")
+
+  const [locationLoading, setLocationLoading] = useState(true)
+  const [dbCountries, setDbCountries] = useState<DbCountryRow[]>([])
+  const [countryPick, setCountryPick] = useState<string>(LOCATION_NONE)
+  const [cityPick, setCityPick] = useState<string>(LOCATION_NONE)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        setLocationLoading(true)
+        const res = await apiFetch<{ success?: boolean; data?: DbCountryRow[] }>(
+          "/api/location/countries",
+          { auth: false },
+        )
+        if (!cancelled && res?.success && Array.isArray(res.data)) {
+          setDbCountries(res.data)
+        }
+      } catch (e) {
+        console.error("Failed to load countries/cities", e)
+      } finally {
+        if (!cancelled) setLocationLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const resolvedCountryId = useMemo(() => {
+    if (countryPick !== LOCATION_NONE) return countryPick
+    const name = formData.country.trim().toLowerCase()
+    if (!name) return ""
+    const row = dbCountries.find((x) => x.name.trim().toLowerCase() === name)
+    return row?.id ?? ""
+  }, [countryPick, formData.country, dbCountries])
+
+  const cityOptions = useMemo(() => {
+    if (!resolvedCountryId) return []
+    return dbCountries.find((x) => x.id === resolvedCountryId)?.cities ?? []
+  }, [resolvedCountryId, dbCountries])
 
   const handleAddAmenity = () => {
     if (newAmenity.trim() && !formData.amenities.includes(newAmenity.trim())) {
@@ -317,6 +376,8 @@ export default function AddVenueComponent() {
           status: "active",
         })
         setActiveTab("profile")
+        setCountryPick(LOCATION_NONE)
+        setCityPick(LOCATION_NONE)
       } else {
         toast.error((result as { error?: string })?.error || "Failed to add venue")
       }
@@ -461,6 +522,78 @@ export default function AddVenueComponent() {
                 />
               </div>
 
+              <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/50 p-4 space-y-4">
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium text-gray-800">Address — location lists</span> come from
+                  the database (admin). You can pick below and still edit the text fields manually.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Choose Your Country</Label>
+                    <Select
+                      disabled={locationLoading}
+                      value={countryPick}
+                      onValueChange={(v) => {
+                        setCountryPick(v)
+                        if (v === LOCATION_NONE) return
+                        const row = dbCountries.find((x) => x.id === v)
+                        if (row) {
+                          setFormData((fd) => ({ ...fd, country: row.name }))
+                          setCityPick(LOCATION_NONE)
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="bg-white">
+                        <SelectValue
+                          placeholder={locationLoading ? "Loading…" : "Choose your country"}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={LOCATION_NONE}>— None —</SelectItem>
+                        {dbCountries.map((co) => (
+                          <SelectItem key={co.id} value={co.id}>
+                            {co.name} ({co.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Choose Your City</Label>
+                    <Select
+                      disabled={locationLoading || !resolvedCountryId}
+                      value={cityPick}
+                      onValueChange={(v) => {
+                        setCityPick(v)
+                        if (v === LOCATION_NONE) return
+                        const ci = cityOptions.find((c) => c.id === v)
+                        if (ci) setFormData((fd) => ({ ...fd, city: ci.name }))
+                      }}
+                    >
+                      <SelectTrigger className="bg-white">
+                        <SelectValue
+                          placeholder={
+                            !resolvedCountryId
+                              ? "Pick or type a matching country first"
+                              : locationLoading
+                                ? "Loading…"
+                                : "Choose your city"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={LOCATION_NONE}>— None —</SelectItem>
+                        {cityOptions.map((ci) => (
+                          <SelectItem key={ci.id} value={ci.id}>
+                            {ci.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="city" className="text-sm font-medium">
@@ -470,7 +603,10 @@ export default function AddVenueComponent() {
                     id="city"
                     placeholder="New York"
                     value={formData.city}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    onChange={(e) => {
+                      setCityPick(LOCATION_NONE)
+                      setFormData({ ...formData, city: e.target.value })
+                    }}
                   />
                 </div>
                 <div className="space-y-2">
@@ -492,7 +628,11 @@ export default function AddVenueComponent() {
                     id="country"
                     placeholder="United States"
                     value={formData.country}
-                    onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                    onChange={(e) => {
+                      setCountryPick(LOCATION_NONE)
+                      setCityPick(LOCATION_NONE)
+                      setFormData({ ...formData, country: e.target.value })
+                    }}
                   />
                 </div>
               </div>

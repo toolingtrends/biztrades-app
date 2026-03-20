@@ -406,37 +406,34 @@ export default function CreateEvent({ organizerId }: { organizerId: string }) {
     "Seminar",
   ]
 
-  const eventCategories = [
-    "Education & Training",
-    "Medical & Pharma",
-    "IT & Technology",
-    "Banking & Finance",
-    "Business Services",
-    "Industrial Engineering",
-    "Building & Construction",
-    "Power & Energy",
-    "Entertainment & Media",
-    "Wellness, Health & Fitness",
-    "Science & Research",
-    "Environment & Waste",
-    "Agriculture & Forestry",
-    "Food & Beverages",
-    "Logistics & Transportation",
-    "Electric & Electronics",
-    "Arts & Crafts",
-    "Auto & Automotive",
-    "Home & Office",
-    "Security & Defense",
-    "Fashion & Beauty",
-    "Travel & Tourism",
-    "Telecommunication",
-    "Apparel & Clothing",
-    "Animals & Pets",
-    "Baby, Kids & Maternity",
-    "Hospitality",
-    "Packing & Packaging",
-    "Miscellaneous",
-  ]
+  /** Category names from admin-managed Event Categories (API); no hardcoded defaults */
+  const [eventCategoryNames, setEventCategoryNames] = useState<string[]>([])
+  const [eventCategoriesLoading, setEventCategoriesLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        setEventCategoriesLoading(true)
+        const res = await apiFetch<
+          | { success?: boolean; data?: Array<{ name: string }> }
+          | Array<{ name: string }>
+        >("/api/event-categories", { auth: false })
+        const raw = Array.isArray(res) ? res : res?.data
+        const names = (Array.isArray(raw) ? raw : [])
+          .map((c) => (typeof c?.name === "string" ? c.name.trim() : ""))
+          .filter(Boolean)
+        if (!cancelled) setEventCategoryNames(names)
+      } catch {
+        if (!cancelled) setEventCategoryNames([])
+      } finally {
+        if (!cancelled) setEventCategoriesLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const currencies = ["₹", "$", "€", "£", "¥"]
 
@@ -1374,25 +1371,39 @@ const handlePublishEvent = async () => {
 
                 <div className="md:col-span-2">
                   <Label>Event Categories</Label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mt-2">
-                    {eventCategories.map((category) => (
-                      <div key={category} className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id={`category-${category}`}
-                          checked={formData.categories.includes(category)}
-                          onChange={() => handleCategoryToggle(category)}
-                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <label
-                          htmlFor={`category-${category}`}
-                          className="text-sm font-medium text-gray-700 cursor-pointer"
-                        >
-                          {category}
-                        </label>
-                      </div>
-                    ))}
-                  </div>
+                  <p className="text-xs text-muted-foreground mt-1 mb-2">
+                    Categories are managed by the admin. Select up to two.
+                  </p>
+                  {eventCategoriesLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading categories…
+                    </div>
+                  ) : eventCategoryNames.length === 0 ? (
+                    <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-3">
+                      No active categories yet. Ask your administrator to add them under Admin → Events → Event Categories.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mt-2">
+                      {eventCategoryNames.map((category) => (
+                        <div key={category} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id={`category-${category}`}
+                            checked={formData.categories.includes(category)}
+                            onChange={() => handleCategoryToggle(category)}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <label
+                            htmlFor={`category-${category}`}
+                            className="text-sm font-medium text-gray-700 cursor-pointer"
+                          >
+                            {category}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="md:col-span-2">

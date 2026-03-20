@@ -1,73 +1,112 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { apiFetch } from "@/lib/api"
 
-type Country = {
-  id: number
+type DbCountry = {
+  id: string
   name: string
-  flag: string
   code: string
+  flag: string | null
 }
 
-const countries: Country[] = [
-  { id: 1, name: "USA", flag: "/flags/USA.png", code: "US" },
-  { id: 2, name: "Germany", flag: "/flags/Germany.png", code: "DE" },
-  { id: 3, name: "UK", flag: "/flags/UK.png", code: "GB" },
-  { id: 4, name: "Canada", flag: "/flags/Canada.png", code: "CA" },
-  { id: 5, name: "UAE", flag: "/flags/UAE.png", code: "AE" },
-  { id: 6, name: "India", flag: "/flags/India.png", code: "IN" },
-  { id: 7, name: "Australia", flag: "/flags/Australiya.png", code: "AU" },
-  { id: 8, name: "China", flag: "/flags/China.jpg", code: "CN" },
-  { id: 9, name: "Spain", flag: "/flags/Spain.jpg", code: "ES" },
-  { id: 10, name: "Italy", flag: "/flags/Itily.jpg", code: "IT" },
-  { id: 11, name: "France", flag: "/flags/France.png", code: "FR" },
-  { id: 12, name: "Japan", flag: "/flags/Japan Flag.png", code: "JP" },
-]
+type DbCity = {
+  id: string
+  name: string
+  image: string | null
+  country?: { id: string; name: string; code: string }
+}
 
 interface CountryCount {
   country: string
   count: number
 }
 
+function normKey(s: string) {
+  return s.trim().toLowerCase()
+}
+
 export default function BrowseByCountry() {
   const router = useRouter()
   const [counts, setCounts] = useState<Record<string, number>>({})
+  const [countries, setCountries] = useState<DbCountry[]>([])
   const [loading, setLoading] = useState(true)
 
+  const countsByNorm = useMemo(() => {
+    const m: Record<string, number> = {}
+    for (const [k, v] of Object.entries(counts)) {
+      m[normKey(k)] = v
+    }
+    return m
+  }, [counts])
+
   useEffect(() => {
-    const fetchCountryCounts = async () => {
+    let cancelled = false
+    const load = async () => {
       try {
         setLoading(true)
-        // Add include=countries parameter to get country data
-        const data = await apiFetch<any>("/api/events/stats?include=countries", { auth: false })
+        const [statsRes, locRes, citiesRes] = await Promise.all([
+          apiFetch<any>("/api/events/stats?include=countries", { auth: false }),
+          apiFetch<{ success?: boolean; data?: DbCountry[] }>("/api/location/countries", {
+            auth: false,
+          }),
+          apiFetch<{ success?: boolean; data?: DbCity[] }>("/api/location/cities", {
+            auth: false,
+          }),
+        ])
+        if (cancelled) return
 
-        if (data.success && data.countries) {
+        if (statsRes?.success && statsRes.countries) {
           const map: Record<string, number> = {}
-          data.countries.forEach((c: CountryCount) => {
-            if (c.country) {
-              map[c.country] = c.count
-            }
+          statsRes.countries.forEach((c: CountryCount) => {
+            if (c.country) map[c.country] = c.count
           })
           setCounts(map)
         }
+
+        if (locRes?.success && Array.isArray(locRes.data)) {
+          setCountries(locRes.data)
+        } else {
+          setCountries([])
+        }
+
+        // Fallback: if /countries has no rows but cities endpoint works, derive unique countries.
+        if (
+          (!locRes?.success || !Array.isArray(locRes.data) || locRes.data.length === 0) &&
+          citiesRes?.success &&
+          Array.isArray(citiesRes.data)
+        ) {
+          const unique = new Map<string, DbCountry>()
+          for (const city of citiesRes.data) {
+            const c = city.country
+            if (!c) continue
+            if (!unique.has(c.id)) {
+              unique.set(c.id, { id: c.id, name: c.name, code: c.code, flag: null })
+            }
+          }
+          setCountries(Array.from(unique.values()))
+        }
       } catch (error) {
-        console.error("Error fetching country stats:", error)
+        console.error("Error fetching countries / stats:", error)
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
-
-    fetchCountryCounts()
+    load()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  const handleCountryClick = (country: Country) => {
+  const handleCountryClick = (country: DbCountry) => {
     router.push(`/event?country=${encodeURIComponent(country.name)}`)
   }
 
   const getCountryCount = (countryName: string): number => {
-    return counts[countryName] || 0
+    const direct = counts[countryName]
+    if (direct != null) return direct
+    return countsByNorm[normKey(countryName)] ?? 0
   }
 
   const formatCount = (count: number): string => {
@@ -93,6 +132,21 @@ export default function BrowseByCountry() {
     )
   }
 
+  if (countries.length === 0) {
+    return (
+      <div className="w-full max-w-7xl mx-auto mb-12">
+        <div className="px-6 py-6 border-b border-gray-200 text-left">
+          <h2 className="text-2xl font-semibold text-gray-900 mb-1">
+            Browse Event By Country
+          </h2>
+        </div>
+        <div className="p-6 text-center text-gray-500">
+          <p>No countries are configured yet. An admin can add them in the dashboard.</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="w-full max-w-7xl mx-auto mb-12">
       <div className="overflow-hidden">
@@ -108,7 +162,11 @@ export default function BrowseByCountry() {
           <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-4">
             {countries.map((country) => {
               const eventCount = getCountryCount(country.name)
-              
+              const flagSrc =
+                country.flag && country.flag.trim() !== ""
+                  ? country.flag
+                  : "/placeholder.svg"
+
               return (
                 <button
                   key={country.id}
@@ -117,7 +175,7 @@ export default function BrowseByCountry() {
                 >
                   <div className="aspect-[5/2] flex items-center justify-left">
                     <img
-                      src={country.flag || "/placeholder.svg"}
+                      src={flagSrc}
                       alt={`${country.name} flag`}
                       className="max-w-full max-h-full object-contain"
                     />
