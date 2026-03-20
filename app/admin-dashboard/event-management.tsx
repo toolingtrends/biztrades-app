@@ -106,6 +106,27 @@ interface Category {
   eventCount?: number
 }
 
+function normalizeStatusLabel(status: unknown): Event["status"] {
+  const raw = String(status ?? "").trim().toUpperCase()
+  switch (raw) {
+    case "PUBLISHED":
+    case "APPROVED":
+      return "Approved"
+    case "PENDING_APPROVAL":
+    case "PENDING REVIEW":
+    case "PENDING_REVIEW":
+      return "Pending Review"
+    case "REJECTED":
+      return "Rejected"
+    case "CANCELLED":
+    case "FLAGGED":
+      return "Flagged"
+    case "DRAFT":
+    default:
+      return "Draft"
+  }
+}
+
 function normalizeEventCategoryNames(event: Event): string[] {
   const raw = (event as unknown as { category?: string | string[] }).category
   if (Array.isArray(raw)) {
@@ -1458,9 +1479,11 @@ export default function EventManagement() {
           endDate: event.endDate ?? "",
           location: event.city ?? event.location ?? event.venue ?? "",
           venue: typeof event.venue === "string" ? event.venue : (event.venue?.venueName ?? event.venue?.name ?? ""),
-          status: event.status ?? "Draft",
+          status: normalizeStatusLabel(event.status),
           attendees: event.currentAttendees ?? event.attendees ?? 0,
           maxCapacity: event.maxAttendees ?? event.maxCapacity ?? 0,
+          featured: event.featured ?? event.isFeatured ?? false,
+          vip: event.vip ?? event.isVIP ?? false,
           isVerified: !!event.isVerified,
           verifiedAt: event.verifiedAt ?? null,
           verifiedBy: event.verifiedBy ?? null,

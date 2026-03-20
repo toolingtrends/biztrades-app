@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import { apiFetch } from "@/lib/api";
 
 export function NotificationsDropdown() {
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -38,28 +39,14 @@ export function NotificationsDropdown() {
 
       const readIds = JSON.parse(localStorage.getItem("readPushNotifications") || "[]");
 
-      // 1️⃣ Fetch the latest notifications list
-      const res = await fetch(`/api/admin/marketing/push-notifications?limit=10`);
-      const json = await res.json();
+      const json = await apiFetch<{ success?: boolean; data?: any[] }>(
+        `/api/marketing/push-notifications?status=all`,
+        { auth: true },
+      );
       if (!json.success) return;
-
-      // 2️⃣ Remove already read notifications BEFORE fetching details
-      const unreadList = json.data.filter((n: any) => !readIds.includes(n.id));
-
-      // 3️⃣ Fetch details ONLY for unread notifications
-      const details = (
-        await Promise.all(
-          unreadList.map((item: any) =>
-            fetch(`/api/admin/marketing/push-notifications/${item.id}`)
-              .then((r) => r.json())
-              .then((res) => res?.data)
-              .catch(() => undefined)
-          )
-        )
-      ).filter(Boolean);
-
-      setNotifications(details);
-      setUnreadCount(details.length);
+      const list = (json.data ?? []).filter((n: any) => !readIds.includes(n.id));
+      setNotifications(list);
+      setUnreadCount(list.length);
     } catch (err) {
       console.error("Error fetching notifications:", err);
     } finally {

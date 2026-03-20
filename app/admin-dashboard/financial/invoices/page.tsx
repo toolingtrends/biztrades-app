@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DollarSign, FileText, Download, Eye, Search, Calendar, User, CreditCard, Receipt } from "lucide-react"
+import { apiFetch } from "@/lib/api"
 
 interface Invoice {
   id: string
@@ -55,10 +56,10 @@ export default function FinancialInvoicesPage() {
   const fetchInvoices = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/admin/financial/invoices")
-      if (!response.ok) throw new Error("Failed to fetch invoices")
-      const data = await response.json()
-      setInvoices(data)
+      const data = await apiFetch<{ success?: boolean; data?: Invoice[] }>("/api/admin/financial/invoices", {
+        auth: true,
+      })
+      setInvoices(data.data ?? [])
     } catch (error) {
       console.error("Error fetching invoices:", error)
     } finally {

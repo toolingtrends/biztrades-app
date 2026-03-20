@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import { apiFetch } from "@/lib/api";
 
 interface Notification {
   id: string;
@@ -31,6 +32,8 @@ interface Notification {
     avatar?: string;
   } | null;
   metadata?: any;
+  body?: string;
+  status?: string;
 }
 
 export function AdminNotificationsDropdown() {
@@ -69,13 +72,22 @@ export function AdminNotificationsDropdown() {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      
-      const response = await fetch('/api/admin/notifications?limit=10');
-      const data = await response.json();
-      
+      const data = await apiFetch<{ success?: boolean; data?: any[] }>(
+        "/api/admin/marketing/push-notifications?status=all",
+        { auth: true },
+      );
       if (data.success) {
-        setNotifications(data.notifications || []);
-        setUnreadCount(data.pagination?.unreadCount || 0);
+        const mapped = (data.data ?? []).map((item: any) => ({
+          id: item.id,
+          type: "SYSTEM_UPDATE",
+          title: item.title,
+          message: item.body ?? "",
+          isRead: false,
+          createdAt: item.createdAt,
+          status: item.status,
+        }));
+        setNotifications(mapped);
+        setUnreadCount(mapped.length);
       }
     } catch (err) {
       console.error("Error fetching admin notifications:", err);
@@ -85,56 +97,18 @@ export function AdminNotificationsDropdown() {
   };
 
   // Fetch unread count separately
-  const fetchUnreadCount = async () => {
-    try {
-      const response = await fetch('/api/admin/notifications/count');
-      const data = await response.json();
-      
-      if (data.success) {
-        setUnreadCount(data.unreadCount || 0);
-      }
-    } catch (err) {
-      console.error("Error fetching unread count:", err);
-    }
-  };
+  const fetchUnreadCount = async () => {};
 
   // Mark notification as read
   const markAsRead = async (notificationId: string) => {
-    try {
-      const response = await fetch('/api/admin/notifications', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notificationIds: [notificationId] })
-      });
-      
-      if (response.ok) {
-        // Update local state
-        setNotifications(prev => 
-          prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n)
-        );
-        setUnreadCount(prev => Math.max(prev - 1, 0));
-      }
-    } catch (err) {
-      console.error("Error marking notification as read:", err);
-    }
+    setNotifications((prev) => prev.map((n) => (n.id === notificationId ? { ...n, isRead: true } : n)));
+    setUnreadCount((prev) => Math.max(prev - 1, 0));
   };
 
   // Mark all as read
   const markAllAsRead = async () => {
-    try {
-      const response = await fetch('/api/admin/notifications', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ markAllAsRead: true })
-      });
-      
-      if (response.ok) {
-        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-        setUnreadCount(0);
-      }
-    } catch (err) {
-      console.error("Error marking all as read:", err);
-    }
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setUnreadCount(0);
   };
 
   // Get notification icon based on type

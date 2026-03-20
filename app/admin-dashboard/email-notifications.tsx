@@ -18,10 +18,11 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { apiFetch } from "@/lib/api"
 import { Mail, Send, Eye, Edit, Trash2, Plus, Clock, TrendingUp, Calendar, Users, FileText } from "lucide-react"
 
 interface EmailCampaign {
-  id: number
+  id: string | number
   title: string
   subject: string
   content: string
@@ -86,10 +87,12 @@ export default function EmailCampaigns() {
 
   const fetchTemplates = async () => {
     try {
-      const response = await fetch("/api/admin/marketing/email-templates")
-      const result = await response.json()
+      const result = await apiFetch<{ success?: boolean; data?: EmailTemplate[] }>(
+        "/api/admin/marketing/email-templates",
+        { auth: true },
+      )
       if (result.success) {
-        setTemplates(result.data)
+        setTemplates(result.data ?? [])
       }
     } catch (error) {
       console.error("[v0] Error fetching templates:", error)
@@ -121,10 +124,12 @@ export default function EmailCampaigns() {
   const fetchCampaigns = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch(`/api/admin/marketing/email-campaigns?status=${filterStatus}`)
-      const result = await response.json()
+      const result = await apiFetch<{ success?: boolean; data?: EmailCampaign[] }>(
+        `/api/admin/marketing/email-campaigns?status=${filterStatus}`,
+        { auth: true },
+      )
       if (result.success) {
-        setCampaigns(result.data)
+        setCampaigns(result.data ?? [])
       }
     } catch (error) {
       console.error("[v0] Error fetching campaigns:", error)
@@ -135,12 +140,14 @@ export default function EmailCampaigns() {
 
   const handleCreateCampaign = async () => {
     try {
-      const response = await fetch("/api/admin/marketing/email-campaigns", {
+      const result = await apiFetch<{ success?: boolean }>(
+        "/api/admin/marketing/email-campaigns",
+        {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newCampaign),
-      })
-      const result = await response.json()
+        body: newCampaign,
+        auth: true,
+      },
+      )
       if (result.success) {
         setIsCreateDialogOpen(false)
         fetchCampaigns()

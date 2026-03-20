@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, Eye, Download, TrendingUp, TrendingDown, Activity } from "lucide-react"
 import { format } from "date-fns"
+import { apiFetch } from "@/lib/api"
 
 interface Transaction {
   id: string
@@ -50,11 +51,12 @@ export default function FinancialTransactionsPage() {
 
   const fetchTransactions = async () => {
     try {
-      const response = await fetch("/api/admin/financial/transactions")
-      if (!response.ok) throw new Error("Failed to fetch transactions")
-      const data = await response.json()
-      setTransactions(data.transactions)
-      setFilteredTransactions(data.transactions)
+      const data = await apiFetch<{ success?: boolean; data?: Transaction[] }>("/api/admin/financial/transactions", {
+        auth: true,
+      })
+      const list = data.data ?? []
+      setTransactions(list)
+      setFilteredTransactions(list)
     } catch (error) {
       console.error("Error fetching transactions:", error)
     } finally {

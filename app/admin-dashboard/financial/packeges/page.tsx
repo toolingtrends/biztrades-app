@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Plus, Edit, Trash2, Package, Users, DollarSign, TrendingUp, Star } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { apiFetch } from "@/lib/api"
 
 interface PromotionPackage {
   id: string
@@ -37,12 +38,18 @@ interface PromotionPackage {
   order: number
 }
 
+interface EventCategoryOption {
+  id: string
+  name: string
+}
+
 export default function PromotionPackagesPage() {
   const [packages, setPackages] = useState<PromotionPackage[]>([])
   const [loading, setLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingPackage, setEditingPackage] = useState<PromotionPackage | null>(null)
   const [featureInput, setFeatureInput] = useState("")
+  const [eventCategories, setEventCategories] = useState<EventCategoryOption[]>([])
   const { toast } = useToast()
 
   const [formData, setFormData] = useState({
@@ -52,7 +59,7 @@ export default function PromotionPackagesPage() {
     userCount: "",
     duration: "",
     durationDays: "",
-    categories: "selected",
+    categories: "",
     recommended: false,
     isActive: true,
     userType: "BOTH",
@@ -61,14 +68,16 @@ export default function PromotionPackagesPage() {
 
   useEffect(() => {
     fetchPackages()
+    fetchEventCategories()
   }, [])
 
   const fetchPackages = async () => {
     try {
-      const res = await fetch("/api/admin/promotion-package")
-      if (!res.ok) throw new Error("Failed to fetch packages")
-      const data = await res.json()
-      setPackages(data.packages)
+      const data = await apiFetch<{ packages?: PromotionPackage[]; data?: PromotionPackage[] }>(
+        "/api/admin/promotion-package",
+        { auth: true },
+      )
+      setPackages(data.packages ?? data.data ?? [])
     } catch (error) {
       toast({
         title: "Error",
@@ -77,6 +86,19 @@ export default function PromotionPackagesPage() {
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchEventCategories = async () => {
+    try {
+      const data = await apiFetch<EventCategoryOption[] | { data?: EventCategoryOption[] }>(
+        "/api/admin/event-categories",
+        { auth: true },
+      )
+      const list = Array.isArray(data) ? data : data.data ?? []
+      setEventCategories(list)
+    } catch (error) {
+      setEventCategories([])
     }
   }
 
@@ -94,13 +116,11 @@ export default function PromotionPackagesPage() {
         ? `/api/admin/promotion-package/${editingPackage.id}`
         : "/api/admin/promotion-package"
 
-      const res = await fetch(url, {
+      await apiFetch(url, {
         method: editingPackage ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(packageData),
+        body: packageData,
+        auth: true,
       })
-
-      if (!res.ok) throw new Error("Failed to save package")
 
       toast({
         title: "Success",
@@ -123,11 +143,10 @@ export default function PromotionPackagesPage() {
     if (!confirm("Are you sure you want to delete this package?")) return
 
     try {
-      const res = await fetch(`/api/admin/promotion-package/${id}`, {
+      await apiFetch(`/api/admin/promotion-package/${id}`, {
         method: "DELETE",
+        auth: true,
       })
-
-      if (!res.ok) throw new Error("Failed to delete package")
 
       toast({
         title: "Success",
@@ -153,7 +172,7 @@ export default function PromotionPackagesPage() {
       userCount: pkg.userCount.toString(),
       duration: pkg.duration,
       durationDays: pkg.durationDays.toString(),
-      categories: pkg.categories[0] || "selected",
+      categories: pkg.categories[0] || eventCategories[0]?.name || "",
       recommended: pkg.recommended,
       isActive: pkg.isActive,
       userType: pkg.userType,
@@ -171,7 +190,7 @@ export default function PromotionPackagesPage() {
       userCount: "",
       duration: "",
       durationDays: "",
-      categories: "selected",
+      categories: eventCategories[0]?.name || "",
       recommended: false,
       isActive: true,
       userType: "BOTH",
@@ -295,9 +314,17 @@ export default function PromotionPackagesPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="selected">Selected Categories</SelectItem>
-                      <SelectItem value="multiple">Multiple Categories</SelectItem>
-                      <SelectItem value="all">All Categories</SelectItem>
+                      {eventCategories.length === 0 ? (
+                        <SelectItem value="none" disabled>
+                          No categories available
+                        </SelectItem>
+                      ) : (
+                        eventCategories.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.name}>
+                            {cat.name}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>

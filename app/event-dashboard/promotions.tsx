@@ -84,6 +84,13 @@ interface CategoryFilter {
   color: string
 }
 
+interface DbCategory {
+  id: string
+  name: string
+  icon?: string | null
+  color?: string | null
+}
+
 export default function EventPromotion({ eventId }: { eventId: string }) {
   const { toast } = useToast()
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
@@ -98,117 +105,53 @@ export default function EventPromotion({ eventId }: { eventId: string }) {
   // State for API data
   const [event, setEvent] = useState<Event | null>(null)
   const [promotions, setPromotions] = useState<Promotion[]>([])
+  const [userCategories, setUserCategories] = useState<CategoryFilter[]>([])
 
-  // User categories with engagement data
-  const userCategories: CategoryFilter[] = [
-    {
-      id: "technology",
-      name: "Technology & IT",
-      icon: Code,
-      userCount: 12500,
-      avgEngagement: 78,
-      color: "bg-blue-500",
-    },
-    {
-      id: "business",
-      name: "Business & Finance",
-      icon: Briefcase,
-      userCount: 8900,
-      avgEngagement: 82,
-      color: "bg-green-500",
-    },
-    {
-      id: "healthcare",
-      name: "Healthcare & Medical",
-      icon: Stethoscope,
-      userCount: 6700,
-      avgEngagement: 85,
-      color: "bg-red-500",
-    },
-    {
-      id: "education",
-      name: "Education & Training",
-      icon: GraduationCap,
-      userCount: 9200,
-      avgEngagement: 76,
-      color: "bg-purple-500",
-    },
-    {
-      id: "arts",
-      name: "Arts & Culture",
-      icon: Palette,
-      userCount: 4300,
-      avgEngagement: 88,
-      color: "bg-pink-500",
-    },
-    {
-      id: "sports",
-      name: "Sports & Fitness",
-      icon: Dumbbell,
-      userCount: 7800,
-      avgEngagement: 79,
-      color: "bg-orange-500",
-    },
-    {
-      id: "food",
-      name: "Food & Beverage",
-      icon: Utensils,
-      userCount: 5600,
-      avgEngagement: 83,
-      color: "bg-yellow-500",
-    },
-    {
-      id: "travel",
-      name: "Travel & Tourism",
-      icon: Plane,
-      userCount: 6100,
-      avgEngagement: 81,
-      color: "bg-indigo-500",
-    },
-    {
-      id: "automotive",
-      name: "Automotive",
-      icon: Car,
-      userCount: 3900,
-      avgEngagement: 74,
-      color: "bg-gray-500",
-    },
-    {
-      id: "real-estate",
-      name: "Real Estate",
-      icon: Home,
-      userCount: 4700,
-      avgEngagement: 77,
-      color: "bg-teal-500",
-    },
-    {
-      id: "entertainment",
-      name: "Entertainment",
-      icon: Music,
-      userCount: 8200,
-      avgEngagement: 86,
-      color: "bg-violet-500",
-    },
-    {
-      id: "retail",
-      name: "Retail & Shopping",
-      icon: ShoppingBag,
-      userCount: 7300,
-      avgEngagement: 80,
-      color: "bg-emerald-500",
-    },
-  ]
+  const iconByCategory = (name: string) => {
+    const key = name.toLowerCase()
+    if (key.includes("tech") || key.includes("it")) return Code
+    if (key.includes("business") || key.includes("finance")) return Briefcase
+    if (key.includes("health") || key.includes("medical")) return Stethoscope
+    if (key.includes("education") || key.includes("training")) return GraduationCap
+    if (key.includes("art") || key.includes("culture")) return Palette
+    if (key.includes("sport") || key.includes("fitness")) return Dumbbell
+    if (key.includes("food") || key.includes("beverage")) return Utensils
+    if (key.includes("travel") || key.includes("tourism")) return Plane
+    if (key.includes("auto")) return Car
+    if (key.includes("real estate") || key.includes("property")) return Home
+    if (key.includes("entertainment")) return Music
+    if (key.includes("retail") || key.includes("shopping")) return ShoppingBag
+    return Target
+  }
 
   useEffect(() => {
     fetchPromotionData()
     fetchPromotionPackages()
+    fetchPromotionCategories()
   }, [eventId])
+
+  const fetchPromotionCategories = async () => {
+    try {
+      const data = await apiFetch<{ success?: boolean; data?: DbCategory[] }>("/api/event-categories", { auth: true })
+      const list = (data.data ?? []).map((cat) => ({
+        id: cat.name.toLowerCase().replace(/\s+/g, "-"),
+        name: cat.name,
+        icon: iconByCategory(cat.name),
+        userCount: 0,
+        avgEngagement: 0,
+        color: "bg-blue-500",
+      }))
+      setUserCategories(list)
+    } catch (error) {
+      setUserCategories([])
+    }
+  }
 
   const fetchPromotionPackages = async () => {
     try {
       setPackagesLoading(true)
       const data = await apiFetch<{ packages: any[] }>("/api/promotion-packages?userType=ORGANIZER", {
-        auth: false,
+        auth: true,
       })
 
       // Transform API response to match component structure
@@ -219,9 +162,9 @@ export default function EventPromotion({ eventId }: { eventId: string }) {
         price: pkg.price,
         features: pkg.features,
         userCount: pkg.userCount,
-        categories: ["selected"], // You can customize this based on your needs
-        duration: `${pkg.duration} days`,
-        recommended: pkg.isRecommended,
+        categories: Array.isArray(pkg.categories) ? pkg.categories : [],
+        duration: pkg.duration || `${pkg.durationDays || 0} days`,
+        recommended: !!pkg.recommended,
       }))
 
       setPromotionPackages(transformedPackages)
@@ -320,10 +263,17 @@ export default function EventPromotion({ eventId }: { eventId: string }) {
 
   const handlePackageSelect = (packageId: string) => {
     setSelectedPackage(packageId)
-    setIsPaymentDialogOpen(true)
+    setSelectedCategories([])
   }
 
   const selectedPackageData = promotionPackages.find((p) => p.id === selectedPackage)
+  const displayedCategories = selectedPackageData
+    ? userCategories.filter((cat) =>
+        (selectedPackageData.categories || [])
+          .map((c) => c.toLowerCase().trim())
+          .includes(cat.name.toLowerCase().trim()),
+      )
+    : []
 
   if (loading || packagesLoading) {
     return (
@@ -363,6 +313,84 @@ export default function EventPromotion({ eventId }: { eventId: string }) {
         </div>
       </div>
 
+      {/* Promotion Packages */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Megaphone className="w-5 h-5" />
+            Choose Promotion Package
+          </CardTitle>
+          <p className="text-sm text-gray-600">
+            Select a package configured by admin. Category targeting will be shown based on the selected package.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {promotionPackages.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <p>No promotion packages available at the moment.</p>
+              <p className="text-sm mt-2">Please check back later or contact support.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {promotionPackages.map((pkg) => (
+                <div
+                  key={pkg.id}
+                  className={`relative p-6 border-2 rounded-lg ${
+                    pkg.recommended ? "border-blue-500 bg-blue-50" : "border-gray-200"
+                  }`}
+                >
+                  {pkg.recommended && (
+                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                      <Badge className="bg-blue-500 text-white">
+                        <Star className="w-3 h-3 mr-1" />
+                        Recommended
+                      </Badge>
+                    </div>
+                  )}
+
+                  <div className="text-center mb-4">
+                    <h3 className="text-xl font-bold">{pkg.name}</h3>
+                    <p className="text-sm text-gray-600 mt-1">{pkg.description}</p>
+                    <div className="mt-3">
+                      <span className="text-3xl font-bold text-blue-600">₹{pkg.price.toLocaleString()}</span>
+                      <span className="text-sm text-gray-500">/{pkg.duration}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 mb-6">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Reach:</span>
+                      <span className="font-medium">{pkg.userCount.toLocaleString()}+ users</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Duration:</span>
+                      <span className="font-medium">{pkg.duration}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 mb-6">
+                    {pkg.features.map((feature, index) => (
+                      <div key={index} className="flex items-center gap-2 text-sm">
+                        <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                        <span>{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <Button
+                    className="w-full"
+                    variant={selectedPackage === pkg.id ? "default" : pkg.recommended ? "default" : "outline"}
+                    onClick={() => handlePackageSelect(pkg.id)}
+                  >
+                    {selectedPackage === pkg.id ? "Selected" : "Select Package"}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Category Selection */}
       <Card>
         <CardHeader>
@@ -371,148 +399,88 @@ export default function EventPromotion({ eventId }: { eventId: string }) {
             Target User Categories
           </CardTitle>
           <p className="text-sm text-gray-600">
-            Select categories that match your event audience. Each category shows user count and engagement rate.
+            {selectedPackageData
+              ? "These categories are configured in the selected admin package."
+              : "Select a promotion package first to see its categories."}
           </p>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {userCategories.map((category) => (
-              <div
-                key={category.id}
-                className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                  selectedCategories.includes(category.id)
-                    ? "border-blue-500 bg-blue-50"
-                    : "border-gray-200 hover:border-gray-300"
-                }`}
-                onClick={() => handleCategoryToggle(category.id)}
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={`p-2 rounded-lg ${category.color}`}>
-                    <category.icon className="w-5 h-5 text-white" />
+          {!selectedPackageData ? (
+            <div className="text-sm text-gray-500">No package selected.</div>
+          ) : displayedCategories.length === 0 ? (
+            <div className="text-sm text-gray-500">No categories configured for this package.</div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {displayedCategories.map((category) => (
+                  <div
+                    key={category.id}
+                    className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                      selectedCategories.includes(category.id)
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                    onClick={() => handleCategoryToggle(category.id)}
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className={`p-2 rounded-lg ${category.color}`}>
+                        <category.icon className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-sm">{category.name}</h3>
+                      </div>
+                      <Checkbox
+                        checked={selectedCategories.includes(category.id)}
+                        onCheckedChange={() => handleCategoryToggle(category.id)}
+                      />
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">Users:</span>
+                        <span className="font-medium">{category.userCount.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">Engagement:</span>
+                        <span className="font-medium">{category.avgEngagement}%</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-sm">{category.name}</h3>
-                  </div>
-                  <Checkbox
-                    checked={selectedCategories.includes(category.id)}
-                    onCheckedChange={() => handleCategoryToggle(category.id)}
-                  />
-                </div>
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Users:</span>
-                    <span className="font-medium">{category.userCount.toLocaleString()}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Engagement:</span>
-                    <span className="font-medium">{category.avgEngagement}%</span>
-                  </div>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          {selectedCategories.length > 0 && (
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-              <h3 className="font-semibold mb-2">Estimated Reach</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-600">Total Users:</span>
-                  <div className="text-2xl font-bold text-blue-600">{calculateEstimatedReach().toLocaleString()}</div>
-                </div>
-                <div>
-                  <span className="text-gray-600">Avg. Engagement:</span>
-                  <div className="text-2xl font-bold text-green-600">{calculateEstimatedEngagement()}%</div>
-                </div>
-                <div>
-                  <span className="text-gray-600">Expected Registrations:</span>
-                  <div className="text-2xl font-bold text-purple-600">
-                    {Math.round(calculateEstimatedReach() * (calculateEstimatedEngagement() / 100) * 0.15)}
+              {selectedCategories.length > 0 && (
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                  <h3 className="font-semibold mb-2">Estimated Reach</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-600">Total Users:</span>
+                      <div className="text-2xl font-bold text-blue-600">{calculateEstimatedReach().toLocaleString()}</div>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Avg. Engagement:</span>
+                      <div className="text-2xl font-bold text-green-600">{calculateEstimatedEngagement()}%</div>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Expected Registrations:</span>
+                      <div className="text-2xl font-bold text-purple-600">
+                        {Math.round(calculateEstimatedReach() * (calculateEstimatedEngagement() / 100) * 0.15)}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
 
-      {/* Promotion Packages */}
-      {selectedCategories.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Megaphone className="w-5 h-5" />
-              Choose Promotion Package
-            </CardTitle>
-            <p className="text-sm text-gray-600">Select a package that fits your budget and reach requirements</p>
-          </CardHeader>
-          <CardContent>
-            {promotionPackages.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <p>No promotion packages available at the moment.</p>
-                <p className="text-sm mt-2">Please check back later or contact support.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {promotionPackages.map((pkg) => (
-                  <div
-                    key={pkg.id}
-                    className={`relative p-6 border-2 rounded-lg ${
-                      pkg.recommended ? "border-blue-500 bg-blue-50" : "border-gray-200"
-                    }`}
-                  >
-                    {pkg.recommended && (
-                      <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                        <Badge className="bg-blue-500 text-white">
-                          <Star className="w-3 h-3 mr-1" />
-                          Recommended
-                        </Badge>
-                      </div>
-                    )}
-
-                    <div className="text-center mb-4">
-                      <h3 className="text-xl font-bold">{pkg.name}</h3>
-                      <p className="text-sm text-gray-600 mt-1">{pkg.description}</p>
-                      <div className="mt-3">
-                        <span className="text-3xl font-bold text-blue-600">₹{pkg.price.toLocaleString()}</span>
-                        <span className="text-sm text-gray-500">/{pkg.duration}</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3 mb-6">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Reach:</span>
-                        <span className="font-medium">{pkg.userCount.toLocaleString()}+ users</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Duration:</span>
-                        <span className="font-medium">{pkg.duration}</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 mb-6">
-                      {pkg.features.map((feature, index) => (
-                        <div key={index} className="flex items-center gap-2 text-sm">
-                          <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-                          <span>{feature}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <Button
-                      className="w-full"
-                      variant={pkg.recommended ? "default" : "outline"}
-                      onClick={() => handlePackageSelect(pkg.id)}
-                    >
-                      <CreditCard className="w-4 h-4 mr-2" />
-                      Select Package
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      {selectedPackage && selectedCategories.length > 0 && (
+        <div className="flex justify-end">
+          <Button onClick={() => setIsPaymentDialogOpen(true)}>
+            <CreditCard className="w-4 h-4 mr-2" />
+            Continue to Purchase
+          </Button>
+        </div>
       )}
 
       {/* Payment Dialog */}

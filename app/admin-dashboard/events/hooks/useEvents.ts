@@ -6,9 +6,33 @@ import * as api from "../services/events.api"
 import type { Event, Category } from "../types/event.types"
 import { getOrganizerDisplay, getCategoryDisplay } from "../types/event.types"
 
+function normalizeStatusLabel(status: unknown): Event["status"] {
+  const raw = String(status ?? "").trim().toUpperCase()
+  switch (raw) {
+    case "PUBLISHED":
+    case "APPROVED":
+      return "Approved"
+    case "PENDING_APPROVAL":
+    case "PENDING REVIEW":
+    case "PENDING_REVIEW":
+      return "Pending Review"
+    case "REJECTED":
+      return "Rejected"
+    case "CANCELLED":
+    case "FLAGGED":
+      return "Flagged"
+    case "DRAFT":
+    default:
+      return "Draft"
+  }
+}
+
 function normalizeEvent(raw: any): Event {
   const organizerStr = getOrganizerDisplay(raw.organizer)
-  const categoryStr = getCategoryDisplay(raw.category)
+  const categoryVal = Array.isArray(raw.category)
+    ? raw.category
+    : (typeof raw.category === "string" && raw.category.trim() ? [raw.category.trim()] : [])
+  const categoryStr = categoryVal.length > 0 ? categoryVal : getCategoryDisplay(raw.category)
   return {
     ...raw,
     organizer: organizerStr,
@@ -17,7 +41,7 @@ function normalizeEvent(raw: any): Event {
     endDate: raw.endDate ?? "",
     location: raw.city ?? raw.location ?? raw.venue ?? "",
     venue: typeof raw.venue === "string" ? raw.venue : (raw.venue?.venueName ?? raw.venue?.name ?? ""),
-    status: raw.status ?? "Draft",
+    status: normalizeStatusLabel(raw.status),
     attendees: raw.currentAttendees ?? raw.attendees ?? 0,
     maxCapacity: raw.maxAttendees ?? raw.maxCapacity ?? 0,
     featured: raw.featured ?? raw.isFeatured ?? false,

@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Bell, Plus, Edit, Trash2, Copy, FileText, ImageIcon } from "lucide-react"
+import { apiFetch } from "@/lib/api"
 
 interface PushTemplate {
   id: string
@@ -51,10 +52,12 @@ export default function PushTemplates() {
   const fetchTemplates = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch(`/api/admin/marketing/push-templates?category=${filterCategory}`)
-      const result = await response.json()
+      const result = await apiFetch<{ success?: boolean; data?: PushTemplate[] }>(
+        `/api/admin/marketing/push-templates?category=${filterCategory}`,
+        { auth: true },
+      )
       if (result.success) {
-        setTemplates(result.data)
+        setTemplates(result.data ?? [])
       }
     } catch (error) {
       console.error("[v0] Error fetching templates:", error)
@@ -65,12 +68,14 @@ export default function PushTemplates() {
 
   const handleCreateTemplate = async () => {
     try {
-      const response = await fetch("/api/admin/marketing/push-templates", {
+      const result = await apiFetch<{ success?: boolean }>(
+        "/api/admin/marketing/push-templates",
+        {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newTemplate),
-      })
-      const result = await response.json()
+        body: newTemplate,
+        auth: true,
+      },
+      )
       if (result.success) {
         setIsCreateDialogOpen(false)
         fetchTemplates()
@@ -89,12 +94,11 @@ export default function PushTemplates() {
 
   const handleDeleteTemplate = async (id: string) => {
     try {
-      const response = await fetch(`/api/admin/marketing/push-templates/${id}`, {
+      await apiFetch(`/api/admin/marketing/push-templates/${id}`, {
         method: "DELETE",
+        auth: true,
       })
-      if (response.ok) {
-        fetchTemplates()
-      }
+      fetchTemplates()
     } catch (error) {
       console.error("[v0] Error deleting template:", error)
     }

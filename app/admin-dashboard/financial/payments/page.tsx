@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Search, DollarSign, CreditCard, TrendingUp, AlertCircle, Eye, RefreshCw } from "lucide-react"
+import { apiFetch } from "@/lib/api"
 
 interface Payment {
   id: string
@@ -70,11 +71,24 @@ export default function FinancialPaymentsPage() {
   const fetchPayments = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/admin/financial/payments")
-      if (!response.ok) throw new Error("Failed to fetch payments")
-      const data = await response.json()
-      setPayments(data.payments)
-      setStats(data.stats)
+      const data = await apiFetch<{ success?: boolean; data?: Payment[] }>("/api/admin/financial/payments", {
+        auth: true,
+      })
+      const list = data.data ?? []
+      setPayments(list)
+      const computedStats: Stats = {
+        totalPayments: list.length,
+        totalRevenue: list
+          .filter((p) => p.status === "COMPLETED")
+          .reduce((sum, p) => sum + p.amount, 0),
+        completedPayments: list.filter((p) => p.status === "COMPLETED").length,
+        pendingPayments: list.filter((p) => p.status === "PENDING").length,
+        failedPayments: list.filter((p) => p.status === "FAILED").length,
+        refundedAmount: list
+          .filter((p) => p.status === "REFUNDED" || p.status === "PARTIALLY_REFUNDED")
+          .reduce((sum, p) => sum + (p.refundAmount || 0), 0),
+      }
+      setStats(computedStats)
     } catch (error) {
       console.error("Error fetching payments:", error)
     } finally {

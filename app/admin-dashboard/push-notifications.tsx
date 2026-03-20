@@ -18,10 +18,11 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { apiFetch } from "@/lib/api"
 import { Bell, Send, Eye, Edit, Trash2, Plus, Clock, TrendingUp, Calendar, Users, FileText } from "lucide-react"
 
 interface PushNotification {
-  id: number
+  id: string | number
   title: string
   body: string
   status: "draft" | "scheduled" | "sent" | "sending"
@@ -82,10 +83,12 @@ export default function PushNotifications() {
 
   const fetchTemplates = async () => {
     try {
-      const response = await fetch("/api/admin/marketing/push-templates")
-      const result = await response.json()
+      const result = await apiFetch<{ success?: boolean; data?: PushTemplate[] }>(
+        "/api/admin/marketing/push-templates",
+        { auth: true },
+      )
       if (result.success) {
-        setTemplates(result.data)
+        setTemplates(result.data ?? [])
       }
     } catch (error) {
       console.error("[v0] Error fetching templates:", error)
@@ -116,10 +119,12 @@ export default function PushNotifications() {
   const fetchNotifications = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch(`/api/admin/marketing/push-notifications?status=${filterStatus}`)
-      const result = await response.json()
+      const result = await apiFetch<{ success?: boolean; data?: PushNotification[] }>(
+        `/api/admin/marketing/push-notifications?status=${filterStatus}`,
+        { auth: true },
+      )
       if (result.success) {
-        setNotifications(result.data)
+        setNotifications(result.data ?? [])
       }
     } catch (error) {
       console.error("[v0] Error fetching notifications:", error)
@@ -130,12 +135,14 @@ export default function PushNotifications() {
 
   const handleCreateNotification = async () => {
     try {
-      const response = await fetch("/api/admin/marketing/push-notifications", {
+      const result = await apiFetch<{ success?: boolean }>(
+        "/api/admin/marketing/push-notifications",
+        {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newNotification),
-      })
-      const result = await response.json()
+        body: newNotification,
+        auth: true,
+      },
+      )
       if (result.success) {
         setIsCreateDialogOpen(false)
         fetchNotifications()

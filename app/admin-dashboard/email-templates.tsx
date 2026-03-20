@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Mail, Plus, Edit, Trash2, Copy, FileText } from "lucide-react"
+import { apiFetch } from "@/lib/api"
 
 interface EmailTemplate {
   id: string
@@ -51,10 +52,12 @@ export default function EmailTemplates() {
   const fetchTemplates = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch(`/api/admin/marketing/email-templates?category=${filterCategory}`)
-      const result = await response.json()
+      const result = await apiFetch<{ success?: boolean; data?: EmailTemplate[] }>(
+        `/api/admin/marketing/email-templates?category=${filterCategory}`,
+        { auth: true },
+      )
       if (result.success) {
-        setTemplates(result.data)
+        setTemplates(result.data ?? [])
       }
     } catch (error) {
       console.error("[v0] Error fetching templates:", error)
@@ -65,12 +68,14 @@ export default function EmailTemplates() {
 
   const handleCreateTemplate = async () => {
     try {
-      const response = await fetch("/api/admin/marketing/email-templates", {
+      const result = await apiFetch<{ success?: boolean }>(
+        "/api/admin/marketing/email-templates",
+        {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newTemplate),
-      })
-      const result = await response.json()
+        body: newTemplate,
+        auth: true,
+      },
+      )
       if (result.success) {
         setIsCreateDialogOpen(false)
         fetchTemplates()
@@ -89,12 +94,11 @@ export default function EmailTemplates() {
 
   const handleDeleteTemplate = async (id: string) => {
     try {
-      const response = await fetch(`/api/marketing/email-templates/${id}`, {
+      await apiFetch(`/api/admin/marketing/email-templates/${id}`, {
         method: "DELETE",
+        auth: true,
       })
-      if (response.ok) {
-        fetchTemplates()
-      }
+      fetchTemplates()
     } catch (error) {
       console.error("[v0] Error deleting template:", error)
     }

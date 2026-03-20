@@ -25,6 +25,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card } from "@/components/ui/card"
+import { apiFetch } from "@/lib/api"
 
 interface Subscription {
   id: string
@@ -65,9 +66,10 @@ export default function FinancialSubscriptionsPage() {
   const fetchSubscriptions = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/admin/financial/subscriptions")
-      const data = await response.json()
-      setSubscriptions(data.subscriptions || [])
+      const data = await apiFetch<{ success?: boolean; data?: Subscription[] }>("/api/admin/financial/subscriptions", {
+        auth: true,
+      })
+      setSubscriptions(data.data || [])
     } catch (error) {
       console.error("Error fetching subscriptions:", error)
     } finally {
