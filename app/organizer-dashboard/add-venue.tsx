@@ -179,7 +179,7 @@ export default function AddVenue({ organizerId, onVenueChange, selectedVenueId }
       venue.venueName?.toLowerCase().includes(searchLower) ||
       `${venue.firstName} ${venue.lastName}`.toLowerCase().includes(searchLower) ||
       venue.email.toLowerCase().includes(searchLower) ||
-      venue.city?.toLowerCase().includes(searchLower) ||
+      (venue.venueCity || venue.city || "").toLowerCase().includes(searchLower) ||
       venue.venueAddress?.toLowerCase().includes(searchLower)
     )
   })
@@ -436,7 +436,9 @@ export default function AddVenue({ organizerId, onVenueChange, selectedVenueId }
                             )}
                             <div className="flex items-center gap-1">
                               <MapPin className="w-3 h-3" />
-                              {venue.venueAddress}, {venue.venueCity}, {venue.venueState}, {venue.venueCountry}
+                              {venue.venueCity || venue.city || "City not provided"},{" "}
+                              {venue.venueState || venue.state || "State not provided"},{" "}
+                              {venue.venueCountry || venue.country || "Country not provided"}
                             </div>
                           </div>
 

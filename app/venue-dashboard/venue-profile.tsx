@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,8 +9,10 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Building2, Star, Users, Camera, Plus, Edit, Trash2, CheckCircle, Upload, Save } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { apiFetch } from "@/lib/api"
 
 interface VenueData {
   id: string
@@ -47,6 +49,15 @@ interface VenueData {
 interface VenueProfileProps {
   venueData: VenueData
 }
+
+type DbCountryRow = {
+  id: string
+  name: string
+  code: string
+  cities: { id: string; name: string }[]
+}
+
+const LOCATION_NONE = "__none__"
 
 // Map backend response to VenueData interface
 const mapBackendToVenueData = (data: any): VenueData => ({
@@ -100,6 +111,10 @@ export default function VenueProfile({ venueData }: VenueProfileProps) {
     hourlyRate: "",
     features: "",
   })
+  const [locationLoading, setLocationLoading] = useState(false)
+  const [dbCountries, setDbCountries] = useState<DbCountryRow[]>([])
+  const [countryPick, setCountryPick] = useState<string>(LOCATION_NONE)
+  const [cityPick, setCityPick] = useState<string>(LOCATION_NONE)
 
   useEffect(() => {
     const fetchVenue = async () => {
@@ -135,6 +150,44 @@ export default function VenueProfile({ venueData }: VenueProfileProps) {
 
     fetchVenue()
   }, [venueData.id, toast])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadLocations = async () => {
+      try {
+        setLocationLoading(true)
+        const res = await apiFetch<{ success?: boolean; data?: DbCountryRow[] }>(
+          "/api/location/countries",
+          { auth: false },
+        )
+        if (!cancelled && res?.success && Array.isArray(res.data)) {
+          setDbCountries(res.data)
+        }
+      } catch (err) {
+        console.error("Failed to load countries/cities:", err)
+        if (!cancelled) setDbCountries([])
+      } finally {
+        if (!cancelled) setLocationLoading(false)
+      }
+    }
+    loadLocations()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const resolvedCountryId = useMemo(() => {
+    if (countryPick !== LOCATION_NONE) return countryPick
+    const typed = (profileData?.country || "").trim().toLowerCase()
+    if (!typed) return ""
+    const row = dbCountries.find((c) => c.name.trim().toLowerCase() === typed)
+    return row?.id ?? ""
+  }, [countryPick, profileData?.country, dbCountries])
+
+  const cityOptions = useMemo(() => {
+    if (!resolvedCountryId) return []
+    return dbCountries.find((c) => c.id === resolvedCountryId)?.cities ?? []
+  }, [resolvedCountryId, dbCountries])
 
   const handleImageUpload = async (file: File, type: "venue" | "floorplan" | "logo") => {
     try {
@@ -476,22 +529,102 @@ export default function VenueProfile({ venueData }: VenueProfileProps) {
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {isEditing ? (
+                          <>
+                            <div className="space-y-2">
+                              <Label>Choose Your Country</Label>
+                              <Select
+                                disabled={locationLoading}
+                                value={countryPick}
+                                onValueChange={(value) => {
+                                  setCountryPick(value)
+                                  if (value === LOCATION_NONE) return
+                                  const row = dbCountries.find((c) => c.id === value)
+                                  if (row) {
+                                    setProfileData((prev) =>
+                                      prev
+                                        ? {
+                                            ...prev,
+                                            country: row.name,
+                                            city: "",
+                                          }
+                                        : prev,
+                                    )
+                                    setCityPick(LOCATION_NONE)
+                                  }
+                                }}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue
+                                    placeholder={locationLoading ? "Loading..." : "Choose your country"}
+                                  />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value={LOCATION_NONE}>-- None --</SelectItem>
+                                  {dbCountries.map((country) => (
+                                    <SelectItem key={country.id} value={country.id}>
+                                      {country.name} ({country.code})
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Choose Your City</Label>
+                              <Select
+                                disabled={locationLoading || !resolvedCountryId}
+                                value={cityPick}
+                                onValueChange={(value) => {
+                                  setCityPick(value)
+                                  if (value === LOCATION_NONE) return
+                                  const city = cityOptions.find((c) => c.id === value)
+                                  if (city) {
+                                    setProfileData((prev) => (prev ? { ...prev, city: city.name } : prev))
+                                  }
+                                }}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue
+                                    placeholder={
+                                      !resolvedCountryId
+                                        ? "Pick/Type country first"
+                                        : locationLoading
+                                          ? "Loading..."
+                                          : "Choose your city"
+                                    }
+                                  />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value={LOCATION_NONE}>-- None --</SelectItem>
+                                  {cityOptions.map((city) => (
+                                    <SelectItem key={city.id} value={city.id}>
+                                      {city.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </>
+                        ) : null}
+
                         <div className="space-y-2">
-                          <Label htmlFor="city">City</Label>
+                          <Label htmlFor="city">City (Manual Entry)</Label>
                           {isEditing ? (
                             <Input
                               id="city"
                               value={profileData?.city}
                               onChange={(e) =>
+                                (setCityPick(LOCATION_NONE),
                                 setProfileData(
                                   (prev) =>
                                     ({
                                       ...(prev ?? {}),
                                       city: e.target.value,
                                     }) as VenueData,
-                                )
+                                ))
                               }
-                              placeholder="Enter city"
+                              placeholder="Enter city if not listed"
                             />
                           ) : (
                             <div className="p-2 bg-muted rounded">{profileData?.city || "Not specified"}</div>
@@ -521,21 +654,23 @@ export default function VenueProfile({ venueData }: VenueProfileProps) {
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="country">Country</Label>
+                          <Label htmlFor="country">Country (Manual Entry)</Label>
                           {isEditing ? (
                             <Input
                               id="country"
                               value={profileData?.country}
                               onChange={(e) =>
+                                (setCountryPick(LOCATION_NONE),
+                                setCityPick(LOCATION_NONE),
                                 setProfileData(
                                   (prev) =>
                                     ({
                                       ...(prev ?? {}),
                                       country: e.target.value,
                                     }) as VenueData,
-                                )
+                                ))
                               }
-                              placeholder="Enter country"
+                              placeholder="Enter country if not listed"
                             />
                           ) : (
                             <div className="p-2 bg-muted rounded">{profileData?.country || "Not specified"}</div>
