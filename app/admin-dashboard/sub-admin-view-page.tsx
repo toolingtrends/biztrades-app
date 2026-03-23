@@ -13,6 +13,7 @@ interface SubAdminViewPageProps {
     email: string
     phone?: string
     role: string
+    roleDisplayName?: string
     permissions: string[]
     isActive: boolean
     createdAt: string
@@ -34,14 +35,13 @@ interface PermissionCategory {
 }
 
 export default function SubAdminViewPage({ subAdmin, onCancel }: SubAdminViewPageProps) {
-  const getRoleDisplay = (role: string) => {
-    const roleMap: { [key: string]: string } = {
-      "SUB_ADMIN": "Sub Admin",
-      "MODERATOR": "Moderator",
-      "SUPPORT": "Support Staff"
-    }
-    return roleMap[role] || role
-  }
+  const getRoleDisplay = () =>
+    subAdmin.roleDisplayName?.trim() ||
+    ({
+      SUB_ADMIN: "Sub Admin",
+      MODERATOR: "Moderator",
+      SUPPORT: "Support Staff",
+    }[subAdmin.role] ?? subAdmin.role.replace(/_/g, " "))
 
   const getRoleColor = (role: string) => {
     const colorMap: { [key: string]: string } = {
@@ -279,7 +279,7 @@ export default function SubAdminViewPage({ subAdmin, onCancel }: SubAdminViewPag
                   <Label className="text-sm font-medium text-gray-500">Role</Label>
                   <p className="mt-1">
                     <Badge className={getRoleColor(subAdmin.role)}>
-                      {getRoleDisplay(subAdmin.role)}
+                      {getRoleDisplay()}
                     </Badge>
                   </p>
                 </div>

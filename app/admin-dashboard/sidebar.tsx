@@ -33,7 +33,7 @@ import SpeakerManagement from "./speakers/page"
 import VenueManagement from "./venues/page"
 // import ContentManagement from "./content-management"
 import SystemSettings from "./system-settings"
-import SubAdminManagement from "./subadmin-management"
+import CustomRolesManagement from "./custom-roles-management"
 import { CreateEventForm } from "./eventManagement/createEvent/create-event"
 import { clearTokens } from "@/lib/api"
 import CountriesManagement from "./countries-management"
@@ -165,6 +165,7 @@ const MENU_PERMISSIONS = {
   roles: "roles",
   "roles-superadmin": "roles-superadmin",
   "roles-subadmins": "roles-subadmins",
+  "roles-custom-templates": "roles-custom-templates",
   settings: "settings",
   "settings-modules": "settings-modules",
   "settings-notifications": "settings-notifications",
@@ -373,6 +374,7 @@ export default function AdminDashboard({ userRole, userPermissions }: AdminDashb
       subItems: [
         { title: "Super Admin", id: "roles-superadmin" },
         { title: "Sub Admins", id: "roles-subadmins" },
+        { title: "Custom role templates", id: "roles-custom-templates" },
       ],
     },
     {
@@ -451,7 +453,9 @@ export default function AdminDashboard({ userRole, userPermissions }: AdminDashb
         case "roles-superadmin":
           return <SuperAdminManagement />
         case "roles-subadmins":
-          return <SubAdminManagement />
+          return <SuperAdminManagement />
+        case "roles-custom-templates":
+          return <CustomRolesManagement />
 
         // Events
         case "events-create":

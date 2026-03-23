@@ -20,6 +20,7 @@ interface SubAdmin {
   email: string
   phone?: string
   role: string
+  roleDisplayName?: string
   permissions: string[]
   isActive: boolean
   lastLogin?: string
@@ -37,6 +38,7 @@ type ApiSubAdminRow = {
   email: string
   phone?: string | null
   role?: string
+  roleDisplayName?: string | null
   permissions?: string[]
   isActive: boolean
   lastLogin?: string | null
@@ -45,12 +47,14 @@ type ApiSubAdminRow = {
 }
 
 function mapApiSubAdminToUi(row: ApiSubAdminRow): SubAdmin {
+  const role = row.role ?? "SUB_ADMIN"
   return {
     id: row.id,
     name: row.name,
     email: row.email,
     phone: row.phone ?? undefined,
-    role: row.role ?? "SUB_ADMIN",
+    role,
+    roleDisplayName: row.roleDisplayName ?? undefined,
     permissions: Array.isArray(row.permissions) ? row.permissions : [],
     isActive: row.isActive,
     lastLogin: row.lastLogin ?? undefined,
@@ -134,14 +138,13 @@ export default function SuperAdminManagement() {
     setSelectedSubAdmin(null)
   }
 
-  const getRoleDisplay = (role: string) => {
-    const roleMap: { [key: string]: string } = {
-      "SUB_ADMIN": "Sub Admin",
-      "MODERATOR": "Moderator",
-      "SUPPORT": "Support Staff"
-    }
-    return roleMap[role] || role
-  }
+  const getRoleDisplay = (sub: SubAdmin) =>
+    sub.roleDisplayName?.trim() ||
+    ({
+      SUB_ADMIN: "Sub Admin",
+      MODERATOR: "Moderator",
+      SUPPORT: "Support Staff",
+    }[sub.role] ?? sub.role.replace(/_/g, " "))
 
   if (!isAuthenticated()) {
     return null
@@ -255,14 +258,19 @@ export default function SuperAdminManagement() {
                       <TableCell className="py-4 font-medium">{subAdmin.name}</TableCell>
                       <TableCell className="py-4">{subAdmin.email}</TableCell>
                       <TableCell className="py-4">
-                        <Badge variant="secondary" className={
-                          subAdmin.role === "SUB_ADMIN" 
-                            ? "bg-purple-100 text-purple-800"
-                            : subAdmin.role === "MODERATOR"
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-orange-100 text-orange-800"
-                        }>
-                          {getRoleDisplay(subAdmin.role)}
+                        <Badge
+                          variant="secondary"
+                          className={
+                            subAdmin.role === "SUB_ADMIN"
+                              ? "bg-purple-100 text-purple-800"
+                              : subAdmin.role === "MODERATOR"
+                                ? "bg-blue-100 text-blue-800"
+                                : subAdmin.role === "SUPPORT"
+                                  ? "bg-orange-100 text-orange-800"
+                                  : "bg-slate-100 text-slate-800"
+                          }
+                        >
+                          {getRoleDisplay(subAdmin)}
                         </Badge>
                       </TableCell>
                       <TableCell className="py-4">{subAdmin.phone || 'N/A'}</TableCell>

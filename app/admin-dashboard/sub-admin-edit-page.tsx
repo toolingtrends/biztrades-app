@@ -11,6 +11,7 @@ import { ChevronDown, ChevronRight, Eye, EyeOff } from "lucide-react"
 import { toast } from "sonner"
 import { adminApi } from "@/lib/admin-api"
 import { AuthErrorHandler } from "./auth-error-handler"
+import { ADMIN_PERMISSION_CATEGORIES, groupPermissionCategoriesForColumns } from "./permission-categories"
 
 interface SubAdminEditPageProps {
   subAdmin: {
@@ -19,6 +20,7 @@ interface SubAdminEditPageProps {
     email: string
     phone?: string
     role: string
+    roleDisplayName?: string
     permissions: string[]
     isActive: boolean
   }
@@ -26,26 +28,16 @@ interface SubAdminEditPageProps {
   onCancel?: () => void
 }
 
-interface PermissionSubItem {
-  id: string
-  title: string
+type RoleTemplate = {
+  slug: string
+  name: string
+  defaultPermissions: string[]
 }
-
-interface PermissionCategory {
-  id: string
-  title: string
-  subItems: PermissionSubItem[]
-}
-
-const ROLE_OPTIONS = [
-  { value: "SUB_ADMIN", label: "Sub Admin" },
-  { value: "MODERATOR", label: "Moderator" },
-  { value: "SUPPORT", label: "Support Staff" },
-]
 
 export default function SubAdminEditPage({ subAdmin, onSuccess, onCancel }: SubAdminEditPageProps) {
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([])
   const [expandedCategories, setExpandedCategories] = useState<string[]>([])
+  const [roleTemplates, setRoleTemplates] = useState<RoleTemplate[]>([])
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -73,6 +65,30 @@ export default function SubAdminEditPage({ subAdmin, onSuccess, onCancel }: SubA
     setSelectedPermissions(subAdmin.permissions)
   }, [subAdmin])
 
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await adminApi<{ success?: boolean; data?: RoleTemplate[] }>(
+          "/role-definitions?active=true&limit=100",
+        )
+        const rows = Array.isArray(res.data) ? res.data : []
+        if (!cancelled) setRoleTemplates(rows)
+      } catch {
+        if (!cancelled) {
+          setRoleTemplates([
+            { slug: "SUB_ADMIN", name: "Sub Admin", defaultPermissions: [] },
+            { slug: "MODERATOR", name: "Moderator", defaultPermissions: [] },
+            { slug: "SUPPORT", name: "Support Staff", defaultPermissions: [] },
+          ])
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const handleToggle = (perm: string) => {
     setSelectedPermissions((prev) => 
       prev.includes(perm) ? prev.filter((p) => p !== perm) : [...prev, perm]
@@ -93,10 +109,13 @@ export default function SubAdminEditPage({ subAdmin, onSuccess, onCancel }: SubA
   }
 
   const handleRoleChange = (role: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      role,
-    }))
+    setFormData((prev) => ({ ...prev, role }))
+    const tpl = roleTemplates.find((r) => r.slug === role)
+    if (tpl?.defaultPermissions?.length) {
+      setSelectedPermissions([...tpl.defaultPermissions])
+    } else {
+      setSelectedPermissions([])
+    }
   }
 
   const validateForm = () => {
@@ -187,163 +206,8 @@ export default function SubAdminEditPage({ subAdmin, onSuccess, onCancel }: SubA
     setShowConfirmPassword(!showConfirmPassword)
   }
 
-  const permissionCategories: PermissionCategory[] = [
-    {
-      title: "Dashboard Overview",
-      id: "dashboard",
-      subItems: [{ title: "Dashboard Overview", id: "dashboard-overview" }],
-    },
-    {
-      title: "Events Management",
-      id: "events",
-      subItems: [
-        { title: "All Events", id: "events-all" },
-        { title: "Create New Event", id: "events-create" },
-        { title: "Event Categories", id: "events-categories" },
-        { title: "Bulk Data", id: "events-approvals" },
-      ],
-    },
-    {
-      title: "Organizer Management",
-      id: "organizers",
-      subItems: [
-        { title: "All Organizers", id: "organizers-all" },
-        { title: "Add Organizer", id: "organizers-add" },
-        { title: "Followers", id: "exhibitors-followers" },
-        { title: "Promotions", id: "exhibitors-promotions" },
-        { title: "Venue Bookings", id: "organizers-bookings" },
-        { title: "Event Feedback", id: "organizers-feedback" },
-      ],
-    },
-    {
-      title: "Exhibitor Management",
-      id: "exhibitors",
-      subItems: [
-        { title: "All Exhibitors", id: "exhibitors-all" },
-        { title: "Add Exhibitor", id: "exhibitors-add" },
-        { title: "Promotions", id: "exhibitors-promotions" },
-        { title: "Followers", id: "exhibitors-followers" },
-        { title: "Appointments", id: "exhibitors-appointments" },
-        { title: "Feedback", id: "exhibitors-feedback" },
-      ],
-    },
-    {
-      title: "Speaker Management",
-      id: "speakers",
-      subItems: [
-        { title: "All Speakers", id: "speakers-all" },
-        { title: "Add Speaker", id: "speakers-add" },
-        { title: "Followers", id: "speakers-followers" },
-        { title: "Appointments", id: "speakers-appointments" },
-        { title: "Feedback", id: "speakers-feedback" },
-      ],
-    },
-    {
-      title: "Venue Management",
-      id: "venues",
-      subItems: [
-        { title: "All Venues", id: "venues-all" },
-        { title: "Add Venue", id: "venues-add" },
-        { title: "Events by Venue", id: "venues-events" },
-        { title: "Booking Enquiries", id: "venues-bookings" },
-        { title: "Feedback", id: "venues-feedback" },
-      ],
-    },
-    {
-      title: "Visitor Management",
-      id: "visitors",
-      subItems: [
-        { title: "Events by Visitor", id: "visitors-events" },
-        { title: "Connections", id: "visitors-connections" },
-        { title: "Appointments", id: "visitors-appointments" },
-      ],
-    },
-    {
-      title: "Financial & Transactions",
-      id: "financial",
-      subItems: [
-        { title: "Payments Dashboard", id: "financial-payments" },
-        { title: "Subscriptions & Plans", id: "financial-subscriptions" },
-        { title: "Invoices & Receipts", id: "financial-invoices" },
-        { title: "Transaction History", id: "financial-transactions" },
-      ],
-    },
-    {
-      title: "Content Management",
-      id: "content",
-      subItems: [
-        { title: "News & Announcements", id: "content-news" },
-        { title: "Blog & Articles", id: "content-blog" },
-        { title: "Banner & Ads Manager", id: "content-banners" },
-        { title: "Featured Events", id: "content-featured" },
-        { title: "Media Library", id: "content-media" },
-      ],
-    },
-    {
-      title: "Marketing & Communication",
-      id: "marketing",
-      subItems: [
-        { title: "Email Campaigns", id: "marketing-email" },
-        { title: "Push Notifications", id: "marketing-notifications" },
-        { title: "Traffic Analytics", id: "marketing-traffic" },
-        { title: "SEO & Keywords", id: "marketing-seo" },
-      ],
-    },
-    {
-      title: "Reports & Analytics",
-      id: "reports",
-      subItems: [
-        { title: "Event Performance", id: "reports-events" },
-        { title: "User Engagement", id: "reports-engagement" },
-        { title: "Revenue Reports", id: "reports-revenue" },
-        { title: "System Health", id: "reports-system" },
-      ],
-    },
-    {
-      title: "Integrations",
-      id: "integrations",
-      subItems: [
-        { title: "Payment Gateways", id: "integrations-payment" },
-        { title: "Email/SMS Providers", id: "integrations-communication" },
-        { title: "Calendar & API", id: "integrations-calendar" },
-        { title: "Hotel & Travel Partners", id: "integrations-travel" },
-      ],
-    },
-    {
-      title: "User Roles & Permissions",
-      id: "roles",
-      subItems: [
-        { title: "Super Admin", id: "roles-superadmin" },
-        { title: "Sub Admins", id: "roles-subadmins" },
-      ],
-    },
-    {
-      title: "Settings & Configuration",
-      id: "settings",
-      subItems: [
-        { title: "Module Management", id: "settings-modules" },
-        { title: "Notifications", id: "settings-notifications" },
-        { title: "Security", id: "settings-security" },
-        { title: "Language & Localization", id: "settings-language" },
-        { title: "Backup & Restore", id: "settings-backup" },
-      ],
-    },
-    {
-      title: "Help & Support",
-      id: "support",
-      subItems: [
-        { title: "Support Tickets", id: "support-tickets" },
-        { title: "Contact Logs", id: "support-contacts" },
-        { title: "Admin Notes", id: "support-notes" },
-      ],
-    },
-  ]
-
-  const groupedCategories = [
-    permissionCategories.slice(0, 5),
-    permissionCategories.slice(5, 10),
-    permissionCategories.slice(10),
-  ]
+  const permissionCategories = ADMIN_PERMISSION_CATEGORIES
+  const groupedCategories = groupPermissionCategoriesForColumns(permissionCategories)
 
   if (authError) {
     return <AuthErrorHandler error={authError} />
@@ -452,28 +316,29 @@ export default function SubAdminEditPage({ subAdmin, onSuccess, onCancel }: SubA
                   </>
                 )}
 
-                <div className="grid grid-cols-12 items-center gap-3">
-                  <Label className="col-span-2 text-gray-700 font-medium">Role *</Label>
-                  <div className="col-span-9 flex gap-4">
-                    {ROLE_OPTIONS.map((roleOption) => (
-                      <div key={roleOption.value} className="flex items-center space-x-2">
-                        <input
-                          type="radio"
-                          id={`role-${roleOption.value}`}
-                          name="role"
-                          value={roleOption.value}
-                          checked={formData.role === roleOption.value}
-                          onChange={(e) => handleRoleChange(e.target.value)}
-                          className="h-4 w-4 text-blue-500 border-gray-300 focus:ring-blue-500"
-                        />
-                        <Label 
-                          htmlFor={`role-${roleOption.value}`}
-                          className="text-gray-700 cursor-pointer"
-                        >
-                          {roleOption.label}
-                        </Label>
-                      </div>
-                    ))}
+                <div className="grid grid-cols-12 items-start gap-3">
+                  <Label className="col-span-2 text-gray-700 font-medium pt-2">Role *</Label>
+                  <div className="col-span-9 flex flex-wrap gap-x-4 gap-y-2">
+                    {roleTemplates.length === 0 ? (
+                      <span className="text-sm text-muted-foreground">Loading roles…</span>
+                    ) : (
+                      roleTemplates.map((roleOption) => (
+                        <div key={roleOption.slug} className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            id={`role-${roleOption.slug}`}
+                            name="role"
+                            value={roleOption.slug}
+                            checked={formData.role === roleOption.slug}
+                            onChange={(e) => handleRoleChange(e.target.value)}
+                            className="h-4 w-4 text-blue-500 border-gray-300 focus:ring-blue-500"
+                          />
+                          <Label htmlFor={`role-${roleOption.slug}`} className="text-gray-700 cursor-pointer">
+                            {roleOption.name}
+                          </Label>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
                 <hr />

@@ -295,16 +295,20 @@ export default function SpeakerManagement() {
           jobTitle: formData.title,
           location: formData.location,
           website: formData.website,
+          linkedin: formData.linkedin,
+          twitter: formData.twitter,
+          instagram: formData.instagram,
           specialties: formData.expertise?.split(",").map((item: string) => item.trim()).filter(Boolean) ?? [],
           speakingExperience: formData.experience,
         },
         auth: true,
       });
       setIsAddDialogOpen(false);
+      alert("Speaker created successfully.");
       fetchSpeakers(searchTerm, statusFilter);
     } catch (error) {
       console.error("Error adding speaker:", error);
-      alert("Error adding speaker. Please try again.");
+      alert(error instanceof Error ? error.message : "Error adding speaker. Please try again.");
     }
   }
 
@@ -525,6 +529,9 @@ function AddSpeakerForm({ onSubmit, onCancel }: { onSubmit: (formData: any) => v
     bio: "",
     expertise: "",
     website: "",
+    linkedin: "",
+    twitter: "",
+    instagram: "",
   })
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -541,7 +548,7 @@ function AddSpeakerForm({ onSubmit, onCancel }: { onSubmit: (formData: any) => v
             id="name" 
             placeholder="Enter speaker name" 
             value={formData.name}
-            onChange={(e) => setFormData({...formData, name: e.target.value})}
+            onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
             required
           />
         </div>
@@ -552,7 +559,7 @@ function AddSpeakerForm({ onSubmit, onCancel }: { onSubmit: (formData: any) => v
             type="email" 
             placeholder="Enter email address" 
             value={formData.email}
-            onChange={(e) => setFormData({...formData, email: e.target.value})}
+            onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
             required
           />
         </div>
@@ -562,7 +569,7 @@ function AddSpeakerForm({ onSubmit, onCancel }: { onSubmit: (formData: any) => v
             id="phone" 
             placeholder="Enter phone number" 
             value={formData.phone}
-            onChange={(e) => setFormData({...formData, phone: e.target.value})}
+            onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
           />
         </div>
         <div className="space-y-2">
@@ -571,7 +578,7 @@ function AddSpeakerForm({ onSubmit, onCancel }: { onSubmit: (formData: any) => v
             id="title" 
             placeholder="Enter job title" 
             value={formData.title}
-            onChange={(e) => setFormData({...formData, title: e.target.value})}
+            onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
           />
         </div>
         <div className="space-y-2">
@@ -580,7 +587,7 @@ function AddSpeakerForm({ onSubmit, onCancel }: { onSubmit: (formData: any) => v
             id="company" 
             placeholder="Enter company name" 
             value={formData.company}
-            onChange={(e) => setFormData({...formData, company: e.target.value})}
+            onChange={(e) => setFormData((prev) => ({ ...prev, company: e.target.value }))}
           />
         </div>
         <div className="space-y-2">
@@ -589,7 +596,7 @@ function AddSpeakerForm({ onSubmit, onCancel }: { onSubmit: (formData: any) => v
             id="location" 
             placeholder="Enter location" 
             value={formData.location}
-            onChange={(e) => setFormData({...formData, location: e.target.value})}
+            onChange={(e) => setFormData((prev) => ({ ...prev, location: e.target.value }))}
           />
         </div>
         <div className="space-y-2">
@@ -598,13 +605,43 @@ function AddSpeakerForm({ onSubmit, onCancel }: { onSubmit: (formData: any) => v
             id="website" 
             placeholder="Enter website URL" 
             value={formData.website}
-            onChange={(e) => setFormData({...formData, website: e.target.value})}
+            onChange={(e) => setFormData((prev) => ({ ...prev, website: e.target.value }))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="linkedin">LinkedIn</Label>
+          <Input
+            id="linkedin"
+            placeholder="LinkedIn URL"
+            value={formData.linkedin}
+            onChange={(e) => setFormData((prev) => ({ ...prev, linkedin: e.target.value }))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="twitter">Twitter / X</Label>
+          <Input
+            id="twitter"
+            placeholder="Profile URL"
+            value={formData.twitter}
+            onChange={(e) => setFormData((prev) => ({ ...prev, twitter: e.target.value }))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="instagram">Instagram</Label>
+          <Input
+            id="instagram"
+            placeholder="Profile URL"
+            value={formData.instagram}
+            onChange={(e) => setFormData((prev) => ({ ...prev, instagram: e.target.value }))}
           />
         </div>
         <div className="space-y-2">
           <Label htmlFor="experience">Experience</Label>
-          <Select onValueChange={(value) => setFormData({...formData, experience: value})}>
-            <SelectTrigger>
+          <Select
+            value={formData.experience || undefined}
+            onValueChange={(value) => setFormData((prev) => ({ ...prev, experience: value }))}
+          >
+            <SelectTrigger id="experience">
               <SelectValue placeholder="Select experience level" />
             </SelectTrigger>
             <SelectContent>
@@ -621,7 +658,7 @@ function AddSpeakerForm({ onSubmit, onCancel }: { onSubmit: (formData: any) => v
             id="bio" 
             placeholder="Enter speaker biography" 
             value={formData.bio}
-            onChange={(e) => setFormData({...formData, bio: e.target.value})}
+            onChange={(e) => setFormData((prev) => ({ ...prev, bio: e.target.value }))}
             rows={4}
           />
         </div>
@@ -631,7 +668,7 @@ function AddSpeakerForm({ onSubmit, onCancel }: { onSubmit: (formData: any) => v
             id="expertise" 
             placeholder="e.g., AI, Machine Learning, Data Science" 
             value={formData.expertise}
-            onChange={(e) => setFormData({...formData, expertise: e.target.value})}
+            onChange={(e) => setFormData((prev) => ({ ...prev, expertise: e.target.value }))}
           />
         </div>
       </div>
